@@ -27,9 +27,25 @@ class MainCamera {
 // Classe para o renderizador
 class MainRenderer {
     constructor(mountRef) {
+        // Configura o renderizador
         this.renderer = new THREE.WebGLRenderer();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+
+        // Adiciona o renderizador ao DOM
         mountRef.current.appendChild(this.renderer.domElement);
+
+        // Cena
+        this.scene = new THREE.Scene();
+
+        // Câmera
+        this.mainCamera = new MainCamera();
+
+        // Chão
+        const floor = new Floor();
+        this.scene.add(floor.mesh);
+
+        // Renderizar
+        this.renderer.render(this.scene, this.mainCamera.camera);
     }
     dispose(mountRef) {
         mountRef.current.removeChild(this.renderer.domElement);
@@ -40,18 +56,8 @@ function App() {
     const mountRef = useRef();
 
     useEffect(() => {
-        // Cena
-        const scene = new THREE.Scene();
-        // Câmera
-        const mainCamera = new MainCamera();
         // Renderizador
         const mainRenderer = new MainRenderer(mountRef);
-        // Chão
-        const floor = new Floor();
-        scene.add(floor.mesh);
-
-        // Renderizar
-        mainRenderer.renderer.render(scene, mainCamera.camera);
 
         return () => mainRenderer.dispose(mountRef);
     }, []);
