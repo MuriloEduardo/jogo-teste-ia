@@ -98,9 +98,10 @@ class MouseControl {
 
         this.debugDiv.innerHTML = `
             <div>Pointer Lock: ${this.isPointerLocked ? 'ON' : 'OFF'}</div>
-            <div>Camera Rotation X: ${rotationX}°</div>
-            <div>Camera Rotation Y: ${rotationY}°</div>
+            <div>Camera Rotation X (Vertical): ${rotationX}°</div>
+            <div>Camera Rotation Y (Horizontal): ${rotationY}°</div>
             <div>Sensitivity: ${this.sensitivity}</div>
+            <div style="color: yellow;">Clique para capturar o mouse</div>
         `;
     }
 
@@ -114,9 +115,14 @@ class MouseControl {
             if (this.isPointerLocked) {
                 const movementX = event.movementX || 0;
                 const movementY = event.movementY || 0;
-                this.camera.rotation.y = movementX * this.sensitivity;
-                this.camera.rotation.x = movementY * this.sensitivity;
-                // this.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.camera.rotation.x));
+
+                // ACUMULAR movimento (não substituir!)
+                this.camera.rotation.y -= movementX * this.sensitivity;
+                this.camera.rotation.x -= movementY * this.sensitivity;
+
+                // Limitar rotação vertical para não dar voltas completas
+                this.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.camera.rotation.x));
+
                 this.updateDebugDisplay();
             }
         };
