@@ -9,6 +9,12 @@ class AnimatedCharacter {
         this.walkCycle = 0;
         this.walkSpeed = 0.1;
 
+        // Variáveis para piscada
+        this.blinkTimer = 0;
+        this.blinkDuration = 0;
+        this.isBlinking = false;
+        this.nextBlinkTime = Math.random() * 3 + 2; // Piscar a cada 2-5 segundos
+
         this.createCharacter();
     }
 
@@ -30,6 +36,9 @@ class AnimatedCharacter {
         this.head.position.y = 1.5 + 1.8; // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.head);
 
+        // Adicionar rosto à cabeça
+        this.createFace();
+
         // Braços
         this.createArms();
 
@@ -37,6 +46,91 @@ class AnimatedCharacter {
         this.createLegs();
 
         this.scene.add(this.characterGroup);
+    }
+
+    createFace() {
+        // Grupo para o rosto
+        this.faceGroup = new THREE.Group();
+
+        // Olho esquerdo
+        const eyeGeometry = new THREE.SphereGeometry(0.08, 8, 6);
+        const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+        this.leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        this.leftEye.position.set(-0.15, 0.1, 0.28);
+        this.faceGroup.add(this.leftEye);
+
+        // Olho direito
+        this.rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        this.rightEye.position.set(0.15, 0.1, 0.28);
+        this.faceGroup.add(this.rightEye);
+
+        // Pupilas (brancas para contraste)
+        const pupilGeometry = new THREE.SphereGeometry(0.04, 6, 4);
+        const pupilMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+        this.leftPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
+        this.leftPupil.position.set(-0.15, 0.1, 0.32);
+        this.faceGroup.add(this.leftPupil);
+
+        this.rightPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
+        this.rightPupil.position.set(0.15, 0.1, 0.32);
+        this.faceGroup.add(this.rightPupil);
+
+        // Nariz
+        const noseGeometry = new THREE.ConeGeometry(0.05, 0.15, 6);
+        const noseMaterial = new THREE.MeshBasicMaterial({ color: 0xffddaa });
+        this.nose = new THREE.Mesh(noseGeometry, noseMaterial);
+        this.nose.position.set(0, -0.05, 0.28);
+        this.nose.rotation.x = Math.PI / 2;
+        this.faceGroup.add(this.nose);
+
+        // Boca
+        const mouthGeometry = new THREE.BoxGeometry(0.2, 0.05, 0.05);
+        const mouthMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+        this.mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
+        this.mouth.position.set(0, -0.2, 0.28);
+        this.faceGroup.add(this.mouth);
+
+        // Posicionar o rosto na cabeça
+        this.faceGroup.position.y = 1.5 + 1.8;
+        this.characterGroup.add(this.faceGroup);
+    }
+
+    updateBlinking() {
+        const deltaTime = 0.016; // Aproximadamente 60 FPS
+        this.blinkTimer += deltaTime;
+
+        if (!this.isBlinking && this.blinkTimer >= this.nextBlinkTime) {
+            // Iniciar piscada
+            this.isBlinking = true;
+            this.blinkDuration = 0.15; // Duração da piscada em segundos
+            this.blinkTimer = 0;
+        }
+
+        if (this.isBlinking) {
+            // Durante a piscada, achatar os olhos
+            const blinkProgress = this.blinkTimer / this.blinkDuration;
+
+            if (blinkProgress < 0.5) {
+                // Primeira metade da piscada - fechar olhos
+                const scale = 1 - (blinkProgress * 2);
+                if (this.leftEye) this.leftEye.scale.y = scale;
+                if (this.rightEye) this.rightEye.scale.y = scale;
+            } else if (blinkProgress < 1) {
+                // Segunda metade da piscada - abrir olhos
+                const scale = (blinkProgress - 0.5) * 2;
+                if (this.leftEye) this.leftEye.scale.y = scale;
+                if (this.rightEye) this.rightEye.scale.y = scale;
+            } else {
+                // Fim da piscada
+                this.isBlinking = false;
+                if (this.leftEye) this.leftEye.scale.y = 1;
+                if (this.rightEye) this.rightEye.scale.y = 1;
+                this.blinkTimer = 0;
+                this.nextBlinkTime = Math.random() * 4 + 1.5; // Próxima piscada em 1.5-5.5 segundos
+            }
+        }
     }
 
     createArms() {
@@ -94,6 +188,9 @@ class AnimatedCharacter {
 
     // Animar caminhada
     updateWalkAnimation() {
+        // Atualizar temporizador de piscada
+        this.updateBlinking();
+
         if (this.isWalking) {
             this.walkCycle += this.walkSpeed;
 
@@ -118,6 +215,11 @@ class AnimatedCharacter {
             // Balanceio do corpo
             this.body.rotation.z = Math.sin(this.walkCycle * 2) * 0.05;
             this.head.rotation.z = Math.sin(this.walkCycle * 2) * 0.03;
+
+            // Balanceio sutil do rosto junto com a cabeça
+            if (this.faceGroup) {
+                this.faceGroup.rotation.z = Math.sin(this.walkCycle * 2) * 0.03;
+            }
         } else {
             // Resetar posições quando parado
             this.resetToIdlePose();
@@ -138,6 +240,11 @@ class AnimatedCharacter {
 
         this.body.rotation.z *= (1 - ease);
         this.head.rotation.z *= (1 - ease);
+
+        // Resetar rotação do rosto também
+        if (this.faceGroup) {
+            this.faceGroup.rotation.z *= (1 - ease);
+        }
 
         // Resetar altura dos pés
         this.leftFoot.position.y = THREE.MathUtils.lerp(this.leftFoot.position.y, -1.7 + 1.8, ease); // Ajustar posição base
