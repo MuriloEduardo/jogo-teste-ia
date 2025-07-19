@@ -1,6 +1,175 @@
 import * as THREE from "three";
 import { useEffect, useRef } from "react";
 
+// Classe para personagem animado
+class AnimatedCharacter {
+    constructor(scene) {
+        this.scene = scene;
+        this.isWalking = false;
+        this.walkCycle = 0;
+        this.walkSpeed = 0.1;
+
+        this.createCharacter();
+    }
+
+    createCharacter() {
+        // Grupo principal do personagem
+        this.characterGroup = new THREE.Group();
+
+        // Corpo (torso)
+        const bodyGeometry = new THREE.BoxGeometry(0.8, 1.2, 0.4);
+        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x0066cc });
+        this.body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        this.body.position.y = 0.6;
+        this.characterGroup.add(this.body);
+
+        // Cabeça
+        const headGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+        const headMaterial = new THREE.MeshBasicMaterial({ color: 0xffddaa });
+        this.head = new THREE.Mesh(headGeometry, headMaterial);
+        this.head.position.y = 1.5;
+        this.characterGroup.add(this.head);
+
+        // Braços
+        this.createArms();
+
+        // Pernas (mais detalhadas)
+        this.createLegs();
+
+        this.scene.add(this.characterGroup);
+    }
+
+    createArms() {
+        // Braço esquerdo
+        const armGeometry = new THREE.BoxGeometry(0.3, 1, 0.3);
+        const armMaterial = new THREE.MeshBasicMaterial({ color: 0xffddaa });
+
+        this.leftArm = new THREE.Mesh(armGeometry, armMaterial);
+        this.leftArm.position.set(-0.65, 0.6, 0);
+        this.characterGroup.add(this.leftArm);
+
+        // Braço direito
+        this.rightArm = new THREE.Mesh(armGeometry, armMaterial);
+        this.rightArm.position.set(0.65, 0.6, 0);
+        this.characterGroup.add(this.rightArm);
+    }
+
+    createLegs() {
+        // Coxa esquerda
+        const thighGeometry = new THREE.BoxGeometry(0.35, 0.8, 0.35);
+        const legMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+
+        this.leftThigh = new THREE.Mesh(thighGeometry, legMaterial);
+        this.leftThigh.position.set(-0.3, -0.4, 0);
+        this.characterGroup.add(this.leftThigh);
+
+        // Canela esquerda
+        const shinGeometry = new THREE.BoxGeometry(0.3, 0.8, 0.3);
+        this.leftShin = new THREE.Mesh(shinGeometry, legMaterial);
+        this.leftShin.position.set(-0.3, -1.2, 0);
+        this.characterGroup.add(this.leftShin);
+
+        // Pé esquerdo
+        const footGeometry = new THREE.BoxGeometry(0.4, 0.2, 0.8);
+        const footMaterial = new THREE.MeshBasicMaterial({ color: 0x654321 });
+        this.leftFoot = new THREE.Mesh(footGeometry, footMaterial);
+        this.leftFoot.position.set(-0.3, -1.7, 0.2);
+        this.characterGroup.add(this.leftFoot);
+
+        // Coxa direita
+        this.rightThigh = new THREE.Mesh(thighGeometry, legMaterial);
+        this.rightThigh.position.set(0.3, -0.4, 0);
+        this.characterGroup.add(this.rightThigh);
+
+        // Canela direita
+        this.rightShin = new THREE.Mesh(shinGeometry, legMaterial);
+        this.rightShin.position.set(0.3, -1.2, 0);
+        this.characterGroup.add(this.rightShin);
+
+        // Pé direito
+        this.rightFoot = new THREE.Mesh(footGeometry, footMaterial);
+        this.rightFoot.position.set(0.3, -1.7, 0.2);
+        this.characterGroup.add(this.rightFoot);
+    }
+
+    // Animar caminhada
+    updateWalkAnimation() {
+        if (this.isWalking) {
+            this.walkCycle += this.walkSpeed;
+
+            // Animação das pernas (movimento alternado)
+            const legSwing = Math.sin(this.walkCycle) * 0.3;
+            const legLift = Math.abs(Math.sin(this.walkCycle)) * 0.1;
+
+            // Perna esquerda
+            this.leftThigh.rotation.x = legSwing;
+            this.leftShin.rotation.x = Math.max(0, legSwing * 0.5);
+            this.leftFoot.position.y = -1.7 + legLift;
+
+            // Perna direita (oposta)
+            this.rightThigh.rotation.x = -legSwing;
+            this.rightShin.rotation.x = Math.max(0, -legSwing * 0.5);
+            this.rightFoot.position.y = -1.7 + Math.abs(Math.sin(this.walkCycle + Math.PI)) * 0.1;
+
+            // Movimento sutil dos braços
+            this.leftArm.rotation.x = legSwing * 0.5;
+            this.rightArm.rotation.x = -legSwing * 0.5;
+
+            // Balanceio do corpo
+            this.body.rotation.z = Math.sin(this.walkCycle * 2) * 0.05;
+            this.head.rotation.z = Math.sin(this.walkCycle * 2) * 0.03;
+        } else {
+            // Resetar posições quando parado
+            this.resetToIdlePose();
+        }
+    }
+
+    resetToIdlePose() {
+        // Suavemente retornar à pose inicial
+        const ease = 0.1;
+
+        this.leftThigh.rotation.x *= (1 - ease);
+        this.rightThigh.rotation.x *= (1 - ease);
+        this.leftShin.rotation.x *= (1 - ease);
+        this.rightShin.rotation.x *= (1 - ease);
+
+        this.leftArm.rotation.x *= (1 - ease);
+        this.rightArm.rotation.x *= (1 - ease);
+
+        this.body.rotation.z *= (1 - ease);
+        this.head.rotation.z *= (1 - ease);
+
+        // Resetar altura dos pés
+        this.leftFoot.position.y = THREE.MathUtils.lerp(this.leftFoot.position.y, -1.7, ease);
+        this.rightFoot.position.y = THREE.MathUtils.lerp(this.rightFoot.position.y, -1.7, ease);
+    }
+
+    setPosition(x, y, z) {
+        this.characterGroup.position.set(x, y, z);
+    }
+
+    setRotation(y) {
+        this.characterGroup.rotation.y = y;
+    }
+
+    setWalking(walking) {
+        this.isWalking = walking;
+    }
+
+    setVisible(visible) {
+        this.characterGroup.visible = visible;
+    }
+
+    dispose() {
+        this.scene.remove(this.characterGroup);
+        // Dispose geometries and materials
+        this.characterGroup.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        });
+    }
+}
+
 // Classe para chão infinito
 class InfiniteFloor {
     constructor(scene, camera) {
@@ -117,7 +286,111 @@ class InfiniteFloor {
     }
 }
 
-// Classe para a câmera
+// Classe para pernas em primeira pessoa
+class FirstPersonLegs {
+    constructor(scene, camera) {
+        this.scene = scene;
+        this.camera = camera;
+        this.isWalking = false;
+        this.walkCycle = 0;
+        this.walkSpeed = 0.15;
+
+        this.createLegs();
+    }
+
+    createLegs() {
+        // Grupo das pernas (posicionado relativamente à câmera)
+        this.legsGroup = new THREE.Group();
+
+        // Coxa esquerda
+        const thighGeometry = new THREE.BoxGeometry(0.3, 0.7, 0.3);
+        const legMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+
+        this.leftThigh = new THREE.Mesh(thighGeometry, legMaterial);
+        this.leftThigh.position.set(-0.4, -1.2, 0.5);
+        this.legsGroup.add(this.leftThigh);
+
+        // Canela esquerda
+        const shinGeometry = new THREE.BoxGeometry(0.25, 0.7, 0.25);
+        this.leftShin = new THREE.Mesh(shinGeometry, legMaterial);
+        this.leftShin.position.set(-0.4, -1.8, 0.7);
+        this.legsGroup.add(this.leftShin);
+
+        // Pé esquerdo
+        const footGeometry = new THREE.BoxGeometry(0.3, 0.15, 0.6);
+        const footMaterial = new THREE.MeshBasicMaterial({ color: 0x654321 });
+        this.leftFoot = new THREE.Mesh(footGeometry, footMaterial);
+        this.leftFoot.position.set(-0.4, -2.2, 0.9);
+        this.legsGroup.add(this.leftFoot);
+
+        // Coxa direita
+        this.rightThigh = new THREE.Mesh(thighGeometry, legMaterial);
+        this.rightThigh.position.set(0.4, -1.2, 0.5);
+        this.legsGroup.add(this.rightThigh);
+
+        // Canela direita
+        this.rightShin = new THREE.Mesh(shinGeometry, legMaterial);
+        this.rightShin.position.set(0.4, -1.8, 0.7);
+        this.legsGroup.add(this.rightShin);
+
+        // Pé direito
+        this.rightFoot = new THREE.Mesh(footGeometry, footMaterial);
+        this.rightFoot.position.set(0.4, -2.2, 0.9);
+        this.legsGroup.add(this.rightFoot);
+
+        // Adicionar as pernas como filho da câmera para seguir sua posição
+        this.camera.add(this.legsGroup);
+    }
+
+    updateWalkAnimation() {
+        if (this.isWalking) {
+            this.walkCycle += this.walkSpeed;
+
+            const legSwing = Math.sin(this.walkCycle) * 0.4;
+            const legLift = Math.abs(Math.sin(this.walkCycle)) * 0.15;
+
+            // Animação mais pronunciada para primeira pessoa
+            this.leftThigh.rotation.x = legSwing;
+            this.leftShin.rotation.x = Math.max(0, legSwing * 0.8);
+            this.leftFoot.position.y = -2.2 + legLift;
+
+            this.rightThigh.rotation.x = -legSwing;
+            this.rightShin.rotation.x = Math.max(0, -legSwing * 0.8);
+            this.rightFoot.position.y = -2.2 + Math.abs(Math.sin(this.walkCycle + Math.PI)) * 0.15;
+
+        } else {
+            this.resetToIdlePose();
+        }
+    }
+
+    resetToIdlePose() {
+        const ease = 0.08;
+
+        this.leftThigh.rotation.x *= (1 - ease);
+        this.rightThigh.rotation.x *= (1 - ease);
+        this.leftShin.rotation.x *= (1 - ease);
+        this.rightShin.rotation.x *= (1 - ease);
+
+        this.leftFoot.position.y = THREE.MathUtils.lerp(this.leftFoot.position.y, -2.2, ease);
+        this.rightFoot.position.y = THREE.MathUtils.lerp(this.rightFoot.position.y, -2.2, ease);
+    }
+
+    setWalking(walking) {
+        this.isWalking = walking;
+    }
+
+    setVisible(visible) {
+        this.legsGroup.visible = visible;
+    }
+
+    dispose() {
+        this.camera.remove(this.legsGroup);
+        this.legsGroup.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        });
+    }
+}
 class MainCamera {
     constructor() {
         // Câmera principal (primeira pessoa)
@@ -190,8 +463,11 @@ class MainRenderer {
         // Câmera
         this.mainCamera = new MainCamera();
 
-        // Criar um cubo para representar o jogador em terceira pessoa
-        this.createPlayerRepresentation();
+        // Pernas em primeira pessoa
+        this.firstPersonLegs = new FirstPersonLegs(this.scene, this.mainCamera.firstPersonCamera);
+
+        // Personagem animado para terceira pessoa
+        this.animatedCharacter = new AnimatedCharacter(this.scene);
 
         // Chão infinito (substituindo o chão fixo)
         this.infiniteFloor = new InfiniteFloor(this.scene, this.mainCamera.firstPersonCamera);
@@ -203,38 +479,53 @@ class MainRenderer {
         this.animate();
     }
 
-    createPlayerRepresentation() {
-        // Criar um cubo simples para representar o jogador
-        const geometry = new THREE.BoxGeometry(1, 2, 1);
-        const material = new THREE.MeshBasicMaterial({
-            color: 0xff0000,
-            wireframe: true
-        });
-        this.playerCube = new THREE.Mesh(geometry, material);
-
-        // Posicionar o cubo na mesma posição da câmera
-        this.playerCube.position.copy(this.mainCamera.firstPersonCamera.position);
-        this.scene.add(this.playerCube);
-    }
-
     animate() {
         requestAnimationFrame(() => this.animate());
+
+        // Verificar se todos os objetos foram inicializados
+        if (!this.mouseControl || !this.firstPersonLegs || !this.animatedCharacter || !this.mainCamera) {
+            return;
+        }
+
+        // Verificar se o jogador está se movendo
+        const isMoving = this.mouseControl.isMoving();
 
         // Atualizar movimento do jogador
         this.mouseControl.updateMovement();
 
-        // Atualizar posição do cubo do jogador
-        this.playerCube.position.copy(this.mainCamera.firstPersonCamera.position);
-        this.playerCube.rotation.y = this.mainCamera.firstPersonCamera.rotation.y;
+        // Atualizar animações dos personagens
+        if (this.firstPersonLegs) {
+            this.firstPersonLegs.setWalking(isMoving);
+            this.firstPersonLegs.updateWalkAnimation();
+        }
 
-        // Mostrar/ocultar cubo do jogador baseado no modo da câmera
-        this.playerCube.visible = !this.mainCamera.isFirstPerson;
+        if (this.animatedCharacter) {
+            this.animatedCharacter.setWalking(isMoving);
+            this.animatedCharacter.updateWalkAnimation();
+        }
+
+        // Atualizar posição e rotação do personagem de terceira pessoa
+        const camera = this.mainCamera.firstPersonCamera;
+        if (camera && this.animatedCharacter) {
+            this.animatedCharacter.setPosition(camera.position.x, camera.position.y - 2, camera.position.z);
+            this.animatedCharacter.setRotation(camera.rotation.y);
+        }
+
+        // Controlar visibilidade baseada no modo da câmera
+        if (this.firstPersonLegs) {
+            this.firstPersonLegs.setVisible(this.mainCamera.isFirstPerson);
+        }
+        if (this.animatedCharacter) {
+            this.animatedCharacter.setVisible(!this.mainCamera.isFirstPerson);
+        }
 
         // Atualizar câmera de terceira pessoa se necessário
         this.mainCamera.updateThirdPersonCamera();
 
         // Atualizar chão infinito
-        this.infiniteFloor.update();
+        if (this.infiniteFloor) {
+            this.infiniteFloor.update();
+        }
 
         this.renderer.render(this.scene, this.mainCamera.activeCamera);
     }
@@ -242,6 +533,8 @@ class MainRenderer {
     dispose(mountRef) {
         this.mouseControl.dispose();
         this.infiniteFloor.dispose();
+        this.firstPersonLegs.dispose();
+        this.animatedCharacter.dispose();
         mountRef.current.removeChild(this.renderer.domElement);
     }
 }
@@ -297,9 +590,12 @@ class MouseControl {
             .filter(key => this.keys[key])
             .join(', ').toUpperCase() || 'Nenhuma';
 
+        const isMovingText = this.isMoving() ? 'ANDANDO' : 'PARADO';
+
         this.debugDiv.innerHTML = `
             <div>Pointer Lock: ${this.isPointerLocked ? 'ON' : 'OFF'}</div>
             <div>Camera Mode: ${this.cameraManager.isFirstPerson ? 'PRIMEIRA PESSOA' : 'TERCEIRA PESSOA'}</div>
+            <div>Status: ${isMovingText}</div>
             <div>Camera Rotation X (Vertical): ${rotationX}°</div>
             <div>Camera Rotation Y (Horizontal): ${rotationY}°</div>
             <div>Camera Position: (${posX}, ${posZ})</div>
@@ -396,6 +692,11 @@ class MouseControl {
 
             this.updateDebugDisplay();
         }
+    }
+
+    // Verificar se o jogador está se movendo
+    isMoving() {
+        return this.keys.w || this.keys.a || this.keys.s || this.keys.d;
     }
 
     dispose() {
