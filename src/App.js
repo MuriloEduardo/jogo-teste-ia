@@ -1,33 +1,59 @@
 import * as THREE from "three";
 import { useEffect, useRef } from "react";
 
-function App() {
-    const mountRef = useRef();
+// Classe para o chão
+class Floor {
+    constructor() {
+        const geometry = new THREE.PlaneGeometry(100, 100);
+        const material = new THREE.MeshBasicMaterial({ color: 0x228b22 });
+        this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.rotation.x = -Math.PI / 2;
+    }
+}
 
-    useEffect(() => {
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(
+// Classe para a câmera
+class MainCamera {
+    constructor() {
+        this.camera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
             0.1,
             1000
         );
-        camera.position.set(0, 2, 5);
+        this.camera.position.set(0, 2, 5);
+    }
+}
 
-        const renderer = new THREE.WebGLRenderer();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        mountRef.current.appendChild(renderer.domElement);
+// Classe para o renderizador
+class MainRenderer {
+    constructor(mountRef) {
+        this.renderer = new THREE.WebGLRenderer();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        mountRef.current.appendChild(this.renderer.domElement);
+    }
+    dispose(mountRef) {
+        mountRef.current.removeChild(this.renderer.domElement);
+    }
+}
 
-        // Chão básico
-        const floorGeometry = new THREE.PlaneGeometry(100, 100);
-        const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x228b22 });
-        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-        floor.rotation.x = -Math.PI / 2;
-        scene.add(floor);
+function App() {
+    const mountRef = useRef();
 
-        renderer.render(scene, camera);
+    useEffect(() => {
+        // Cena
+        const scene = new THREE.Scene();
+        // Câmera
+        const mainCamera = new MainCamera();
+        // Renderizador
+        const mainRenderer = new MainRenderer(mountRef);
+        // Chão
+        const floor = new Floor();
+        scene.add(floor.mesh);
 
-        return () => mountRef.current.removeChild(renderer.domElement);
+        // Renderizar
+        mainRenderer.renderer.render(scene, mainCamera.camera);
+
+        return () => mainRenderer.dispose(mountRef);
     }, []);
 
     return <div ref={mountRef} />;
