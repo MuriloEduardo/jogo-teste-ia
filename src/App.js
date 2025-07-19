@@ -120,13 +120,57 @@ class InfiniteFloor {
 // Classe para a câmera
 class MainCamera {
     constructor() {
-        this.camera = new THREE.PerspectiveCamera(
+        // Câmera principal (primeira pessoa)
+        this.firstPersonCamera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
             0.1,
             1000
         );
-        this.camera.position.set(0, 2, 5);
+        this.firstPersonCamera.position.set(0, 2, 5);
+
+        // Câmera de terceira pessoa
+        this.thirdPersonCamera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+
+        // Propriedades para terceira pessoa
+        this.thirdPersonDistance = 10;
+        this.thirdPersonHeight = 5;
+
+        // Modo atual (true = primeira pessoa, false = terceira pessoa)
+        this.isFirstPerson = true;
+    }
+
+    // Retorna a câmera ativa
+    get activeCamera() {
+        return this.isFirstPerson ? this.firstPersonCamera : this.thirdPersonCamera;
+    }
+
+    // Alterna entre primeira e terceira pessoa
+    toggleCameraMode() {
+        this.isFirstPerson = !this.isFirstPerson;
+        return this.isFirstPerson;
+    }
+
+    // Atualiza posição da câmera de terceira pessoa
+    updateThirdPersonCamera() {
+        if (!this.isFirstPerson) {
+            // Calcular posição atrás da câmera de primeira pessoa
+            const direction = new THREE.Vector3(0, 0, 1);
+            direction.applyQuaternion(this.firstPersonCamera.quaternion);
+
+            // Posicionar câmera atrás e acima
+            this.thirdPersonCamera.position.copy(this.firstPersonCamera.position);
+            this.thirdPersonCamera.position.add(direction.multiplyScalar(-this.thirdPersonDistance));
+            this.thirdPersonCamera.position.y += this.thirdPersonHeight;
+
+            // Fazer a câmera olhar para a câmera de primeira pessoa
+            this.thirdPersonCamera.lookAt(this.firstPersonCamera.position);
+        }
     }
 }
 
@@ -146,14 +190,31 @@ class MainRenderer {
         // Câmera
         this.mainCamera = new MainCamera();
 
+        // Criar um cubo para representar o jogador em terceira pessoa
+        this.createPlayerRepresentation();
+
         // Chão infinito (substituindo o chão fixo)
-        this.infiniteFloor = new InfiniteFloor(this.scene, this.mainCamera.camera);
+        this.infiniteFloor = new InfiniteFloor(this.scene, this.mainCamera.firstPersonCamera);
 
         // Controle de mouse
-        this.mouseControl = new MouseControl(this.renderer, this.mainCamera.camera);
+        this.mouseControl = new MouseControl(this.renderer, this.mainCamera);
 
         // Iniciar loop de animação
         this.animate();
+    }
+
+    createPlayerRepresentation() {
+        // Criar um cubo simples para representar o jogador
+        const geometry = new THREE.BoxGeometry(1, 2, 1);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            wireframe: true
+        });
+        this.playerCube = new THREE.Mesh(geometry, material);
+
+        // Posicionar o cubo na mesma posição da câmera
+        this.playerCube.position.copy(this.mainCamera.firstPersonCamera.position);
+        this.scene.add(this.playerCube);
     }
 
     animate() {
@@ -162,10 +223,20 @@ class MainRenderer {
         // Atualizar movimento do jogador
         this.mouseControl.updateMovement();
 
+        // Atualizar posição do cubo do jogador
+        this.playerCube.position.copy(this.mainCamera.firstPersonCamera.position);
+        this.playerCube.rotation.y = this.mainCamera.firstPersonCamera.rotation.y;
+
+        // Mostrar/ocultar cubo do jogador baseado no modo da câmera
+        this.playerCube.visible = !this.mainCamera.isFirstPerson;
+
+        // Atualizar câmera de terceira pessoa se necessário
+        this.mainCamera.updateThirdPersonCamera();
+
         // Atualizar chão infinito
         this.infiniteFloor.update();
 
-        this.renderer.render(this.scene, this.mainCamera.camera);
+        this.renderer.render(this.scene, this.mainCamera.activeCamera);
     }
 
     dispose(mountRef) {
@@ -177,9 +248,9 @@ class MainRenderer {
 
 // Classe para controle de mouse e movimento
 class MouseControl {
-    constructor(renderer, camera) {
+    constructor(renderer, cameraManager) {
         this.renderer = renderer;
-        this.camera = camera;
+        this.cameraManager = cameraManager;
         this.isPointerLocked = false;
         this.sensitivity = 0.002;
 
@@ -215,10 +286,11 @@ class MouseControl {
     }
 
     updateDebugDisplay() {
-        const rotationX = (this.camera.rotation.x * 180 / Math.PI).toFixed(2);
-        const rotationY = (this.camera.rotation.y * 180 / Math.PI).toFixed(2);
-        const posX = this.camera.position.x.toFixed(2);
-        const posZ = this.camera.position.z.toFixed(2);
+        const camera = this.cameraManager.firstPersonCamera;
+        const rotationX = (camera.rotation.x * 180 / Math.PI).toFixed(2);
+        const rotationY = (camera.rotation.y * 180 / Math.PI).toFixed(2);
+        const posX = camera.position.x.toFixed(2);
+        const posZ = camera.position.z.toFixed(2);
 
         // Status das teclas
         const keysStatus = Object.keys(this.keys)
@@ -227,6 +299,7 @@ class MouseControl {
 
         this.debugDiv.innerHTML = `
             <div>Pointer Lock: ${this.isPointerLocked ? 'ON' : 'OFF'}</div>
+            <div>Camera Mode: ${this.cameraManager.isFirstPerson ? 'PRIMEIRA PESSOA' : 'TERCEIRA PESSOA'}</div>
             <div>Camera Rotation X (Vertical): ${rotationX}°</div>
             <div>Camera Rotation Y (Horizontal): ${rotationY}°</div>
             <div>Camera Position: (${posX}, ${posZ})</div>
@@ -234,6 +307,7 @@ class MouseControl {
             <div>Move Speed: ${this.moveSpeed}</div>
             <div>Sensitivity: ${this.sensitivity}</div>
             <div style="color: yellow;">Clique para capturar o mouse | WASD para mover</div>
+            <div style="color: cyan;">Pressione C para alternar câmera</div>
         `;
     }
 
@@ -248,14 +322,16 @@ class MouseControl {
                 const movementX = event.movementX || 0;
                 const movementY = event.movementY || 0;
 
+                const camera = this.cameraManager.firstPersonCamera;
+
                 // Rotação horizontal (Y) - movimento do mouse para esquerda/direita
-                this.camera.rotation.y -= movementX * this.sensitivity;
+                camera.rotation.y -= movementX * this.sensitivity;
 
                 // Rotação vertical (X) - movimento do mouse para cima/baixo
-                this.camera.rotation.x -= movementY * this.sensitivity;
+                camera.rotation.x -= movementY * this.sensitivity;
 
                 // Limitar rotação vertical para não dar voltas completas
-                this.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.camera.rotation.x));
+                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
 
                 this.updateDebugDisplay();
             }
@@ -264,6 +340,14 @@ class MouseControl {
         // Controles de teclado
         this.handleKeyDown = (event) => {
             const key = event.key.toLowerCase();
+
+            // Alternar modo de câmera com tecla C
+            if (key === 'c') {
+                this.cameraManager.toggleCameraMode();
+                this.updateDebugDisplay();
+                return;
+            }
+
             if (key in this.keys) {
                 this.keys[key] = true;
                 this.updateDebugDisplay();
@@ -291,6 +375,7 @@ class MouseControl {
     updateMovement() {
         if (!this.isPointerLocked) return;
 
+        const camera = this.cameraManager.firstPersonCamera;
         const direction = new THREE.Vector3();
 
         // Calcular direção baseada na rotação da câmera
@@ -304,10 +389,10 @@ class MouseControl {
             direction.normalize();
 
             // Aplicar rotação Y da câmera à direção
-            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camera.rotation.y);
+            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
 
             // Aplicar movimento
-            this.camera.position.add(direction.multiplyScalar(this.moveSpeed));
+            camera.position.add(direction.multiplyScalar(this.moveSpeed));
 
             this.updateDebugDisplay();
         }
