@@ -202,7 +202,6 @@ class InfiniteFloor {
             foliage: new THREE.SphereGeometry(2, 6, 4), // Reduzido segments
             rock: new THREE.DodecahedronGeometry(1.5, 0),
             bush: new THREE.SphereGeometry(0.8, 6, 4),
-            crystal: new THREE.OctahedronGeometry(1.2, 0),
             floor: new THREE.PlaneGeometry(this.chunkSize, this.chunkSize)
         };
     }
@@ -213,12 +212,7 @@ class InfiniteFloor {
             trunk: new THREE.MeshBasicMaterial({ color: 0x8B4513 }),
             foliage: new THREE.MeshBasicMaterial({ color: 0x228B22 }),
             rock: new THREE.MeshBasicMaterial({ color: 0x696969 }),
-            bush: new THREE.MeshBasicMaterial({ color: 0x32CD32 }),
-            crystal: new THREE.MeshBasicMaterial({
-                color: 0x00FFFF,
-                transparent: true,
-                opacity: 0.8
-            })
+            bush: new THREE.MeshBasicMaterial({ color: 0x32CD32 })
         };
     }
 
@@ -252,18 +246,15 @@ class InfiniteFloor {
             let object;
             let collider;
 
-            if (rand3 < 0.4) {
+            if (rand3 < 0.45) {
                 object = this.createTree(x, z);
                 collider = this.createTreeCollider(x, z);
-            } else if (rand3 < 0.7) {
+            } else if (rand3 < 0.8) {
                 object = this.createRock(x, z);
                 collider = this.createRockCollider(x, z);
-            } else if (rand3 < 0.85) {
+            } else {
                 object = this.createBush(x, z);
                 collider = this.createBushCollider(x, z);
-            } else {
-                object = this.createCrystal(x, z);
-                collider = null; // Cristais não têm colisão (podem ser atravessados)
             }
 
             if (object) {
@@ -317,21 +308,6 @@ class InfiniteFloor {
         bush.scale.y = 0.6;
 
         return bush;
-    }
-
-    // Criar um cristal OTIMIZADO
-    createCrystal(x, z) {
-        const crystal = new THREE.Mesh(this.sharedGeometries.crystal, this.sharedMaterials.crystal);
-
-        crystal.position.set(x, 1.2, z);
-        crystal.rotation.y = this.seededRandom(x, z, 997) * Math.PI * 2;
-
-        // Marcar como cristal para animação
-        crystal.userData.isCrystal = true;
-        crystal.userData.baseY = 1.2;
-        crystal.userData.animationOffset = this.seededRandom(x, z, 996) * Math.PI * 2;
-
-        return crystal;
     }
 
     // NOVO: Criar colisor para árvore
@@ -529,22 +505,8 @@ class InfiniteFloor {
 
     // Animar objetos do cenário OTIMIZADO
     animateObjects() {
-        const time = performance.now() * 0.001; // Tempo em segundos
-
-        // Animar apenas cristais (removido console.log)
-        for (const [key, objects] of this.chunkObjects.entries()) {
-            for (let i = 0; i < objects.length; i++) {
-                const obj = objects[i];
-                if (obj.userData.isCrystal) {
-                    // Rotação constante mais lenta
-                    obj.rotation.y += 0.01;
-
-                    // Movimento vertical flutuante mais simples
-                    const floatAmount = Math.sin(time * 1.5 + obj.userData.animationOffset) * 0.2;
-                    obj.position.y = obj.userData.baseY + floatAmount;
-                }
-            }
-        }
+        // Removido: animação de cristais já que foram removidos do jogo
+        // Função mantida para futuras animações se necessário
     }
 
     // Limpeza OTIMIZADA
