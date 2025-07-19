@@ -367,9 +367,11 @@ class InfiniteFloor {
         };
     }
 
-    // NOVO: Verificar colisão circular
+    // NOVO: Verificar colisão circular com suavização
     checkCollision(playerX, playerZ, playerRadius = 0.8) {
         const currentChunk = this.worldToChunk({ x: playerX, z: playerZ });
+        let closestCollision = null;
+        let minDistance = Infinity;
 
         // Verificar colisões nos chunks próximos
         for (let x = currentChunk.x - 1; x <= currentChunk.x + 1; x++) {
@@ -382,14 +384,25 @@ class InfiniteFloor {
                         const dx = playerX - collider.x;
                         const dz = playerZ - collider.z;
                         const distance = Math.sqrt(dx * dx + dz * dz);
+                        const totalRadius = playerRadius + collider.radius;
 
                         // Se a distância é menor que a soma dos raios, há colisão
-                        if (distance < (playerRadius + collider.radius)) {
-                            return {
+                        if (distance < totalRadius && distance < minDistance) {
+                            // Calcular penetração (quão profundo o jogador está dentro do colisor)
+                            const penetration = totalRadius - distance;
+                            const normalizedDistance = Math.max(distance, 0.001); // Evitar divisão por zero
+
+                            // Força de empurrão mais suave baseada na penetração
+                            const pushStrength = Math.min(penetration * 0.3, 0.15); // Limitado e mais suave
+
+                            minDistance = distance;
+                            closestCollision = {
                                 collision: true,
                                 type: collider.type,
-                                pushX: dx / distance * 0.5, // Força de empurrão
-                                pushZ: dz / distance * 0.5
+                                pushX: (dx / normalizedDistance) * pushStrength,
+                                pushZ: (dz / normalizedDistance) * pushStrength,
+                                distance: distance,
+                                penetration: penetration
                             };
                         }
                     }
@@ -397,7 +410,7 @@ class InfiniteFloor {
             }
         }
 
-        return { collision: false };
+        return closestCollision || { collision: false };
     }
 
     // Converte posição do mundo para coordenada de chunk
@@ -897,9 +910,10 @@ class MouseControl {
         if (this.infiniteFloor) {
             const collision = this.infiniteFloor.checkCollision(camera.position.x, camera.position.z);
             if (collision.collision) {
-                collisionInfo = `<div style="color: red;">⚠️ COLISÃO COM ${collision.type.toUpperCase()}</div>`;
+                const penetrationText = collision.penetration ? ` (${collision.penetration.toFixed(2)}m)` : '';
+                collisionInfo = `<div style="color: orange;">⚠️ COLISÃO SUAVE COM ${collision.type.toUpperCase()}${penetrationText}</div>`;
             } else {
-                collisionInfo = `<div style="color: lightgreen;">✓ Sem colisões</div>`;
+                collisionInfo = `<div style="color: lightgreen;">✓ Movimento livre</div>`;
             }
         }
 
@@ -986,7 +1000,7 @@ class MouseControl {
         document.addEventListener('keyup', this.handleKeyUp);
     }
 
-    // Método para atualizar movimento OTIMIZADO com COLISÃO
+    // Método para atualizar movimento OTIMIZADO com COLISÃO SUAVE
     updateMovement() {
         if (!this.isPointerLocked) return;
 
@@ -1006,32 +1020,49 @@ class MouseControl {
             // Aplicar rotação Y da câmera à direção
             direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
 
-            // NOVO: Calcular nova posição
-            const newPosition = camera.position.clone();
-            newPosition.add(direction.multiplyScalar(this.moveSpeed));
+            // NOVO: Calcular nova posição com movimento mais suave
+            const moveVector = direction.multiplyScalar(this.moveSpeed);
+            const newPosition = camera.position.clone().add(moveVector);
 
             // NOVO: Verificar colisão se o InfiniteFloor está disponível
             if (this.infiniteFloor) {
                 const collision = this.infiniteFloor.checkCollision(newPosition.x, newPosition.z);
 
                 if (collision.collision) {
-                    // Se há colisão, empurrar o jogador para longe do objeto
-                    newPosition.x += collision.pushX;
-                    newPosition.z += collision.pushZ;
+                    // Movimento suave com deslizamento ao longo das superfícies
+                    const adjustedPosition = camera.position.clone();
 
-                    // Verificar novamente para garantir que não está mais colidindo
-                    const secondCheck = this.infiniteFloor.checkCollision(newPosition.x, newPosition.z);
-                    if (!secondCheck.collision) {
-                        camera.position.copy(newPosition);
+                    // Aplicar empurrão gradual
+                    adjustedPosition.x += collision.pushX;
+                    adjustedPosition.z += collision.pushZ;
+
+                    // Tentar movimento parcial em cada eixo separadamente (deslizar)
+                    const testX = camera.position.clone();
+                    testX.x += moveVector.x;
+                    const collisionX = this.infiniteFloor.checkCollision(testX.x, testX.z);
+
+                    const testZ = camera.position.clone();
+                    testZ.z += moveVector.z;
+                    const collisionZ = this.infiniteFloor.checkCollision(testZ.x, testZ.z);
+
+                    // Permitir movimento no eixo que não tem colisão (deslizamento)
+                    if (!collisionX.collision) {
+                        adjustedPosition.x = testX.x;
                     }
-                    // Se ainda há colisão, não mover
+                    if (!collisionZ.collision) {
+                        adjustedPosition.z = testZ.z;
+                    }
+
+                    // Aplicar posição ajustada suavemente
+                    camera.position.lerp(adjustedPosition, 0.8);
+
                 } else {
                     // Sem colisão, mover normalmente
                     camera.position.copy(newPosition);
                 }
             } else {
                 // Fallback: movimento sem colisão
-                camera.position.add(direction.multiplyScalar(this.moveSpeed));
+                camera.position.add(moveVector);
             }
 
             // OTIMIZADO: Atualizar debug menos frequentemente durante movimento
