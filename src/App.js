@@ -20,14 +20,14 @@ class AnimatedCharacter {
         const bodyGeometry = new THREE.BoxGeometry(0.8, 1.2, 0.4);
         const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x0066cc });
         this.body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        this.body.position.y = 0.6;
+        this.body.position.y = 0.6 + 1.8; // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.body);
 
         // Cabeça
         const headGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
         const headMaterial = new THREE.MeshBasicMaterial({ color: 0xffddaa });
         this.head = new THREE.Mesh(headGeometry, headMaterial);
-        this.head.position.y = 1.5;
+        this.head.position.y = 1.5 + 1.8; // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.head);
 
         // Braços
@@ -45,12 +45,12 @@ class AnimatedCharacter {
         const armMaterial = new THREE.MeshBasicMaterial({ color: 0xffddaa });
 
         this.leftArm = new THREE.Mesh(armGeometry, armMaterial);
-        this.leftArm.position.set(-0.65, 0.6, 0);
+        this.leftArm.position.set(-0.65, 0.6 + 1.8, 0); // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.leftArm);
 
         // Braço direito
         this.rightArm = new THREE.Mesh(armGeometry, armMaterial);
-        this.rightArm.position.set(0.65, 0.6, 0);
+        this.rightArm.position.set(0.65, 0.6 + 1.8, 0); // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.rightArm);
     }
 
@@ -60,35 +60,35 @@ class AnimatedCharacter {
         const legMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
 
         this.leftThigh = new THREE.Mesh(thighGeometry, legMaterial);
-        this.leftThigh.position.set(-0.3, -0.4, 0);
+        this.leftThigh.position.set(-0.3, -0.4 + 1.8, 0); // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.leftThigh);
 
         // Canela esquerda
         const shinGeometry = new THREE.BoxGeometry(0.3, 0.8, 0.3);
         this.leftShin = new THREE.Mesh(shinGeometry, legMaterial);
-        this.leftShin.position.set(-0.3, -1.2, 0);
+        this.leftShin.position.set(-0.3, -1.2 + 1.8, 0); // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.leftShin);
 
         // Pé esquerdo
         const footGeometry = new THREE.BoxGeometry(0.4, 0.2, 0.8);
         const footMaterial = new THREE.MeshBasicMaterial({ color: 0x654321 });
         this.leftFoot = new THREE.Mesh(footGeometry, footMaterial);
-        this.leftFoot.position.set(-0.3, -1.7, 0.2);
+        this.leftFoot.position.set(-0.3, -1.7 + 1.8, 0.2); // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.leftFoot);
 
         // Coxa direita
         this.rightThigh = new THREE.Mesh(thighGeometry, legMaterial);
-        this.rightThigh.position.set(0.3, -0.4, 0);
+        this.rightThigh.position.set(0.3, -0.4 + 1.8, 0); // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.rightThigh);
 
         // Canela direita
         this.rightShin = new THREE.Mesh(shinGeometry, legMaterial);
-        this.rightShin.position.set(0.3, -1.2, 0);
+        this.rightShin.position.set(0.3, -1.2 + 1.8, 0); // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.rightShin);
 
         // Pé direito
         this.rightFoot = new THREE.Mesh(footGeometry, footMaterial);
-        this.rightFoot.position.set(0.3, -1.7, 0.2);
+        this.rightFoot.position.set(0.3, -1.7 + 1.8, 0.2); // Ajustar para que os pés fiquem no chão
         this.characterGroup.add(this.rightFoot);
     }
 
@@ -104,12 +104,12 @@ class AnimatedCharacter {
             // Perna esquerda
             this.leftThigh.rotation.x = legSwing;
             this.leftShin.rotation.x = Math.max(0, legSwing * 0.5);
-            this.leftFoot.position.y = -1.7 + legLift;
+            this.leftFoot.position.y = (-1.7 + 1.8) + legLift; // Ajustar posição base
 
             // Perna direita (oposta)
             this.rightThigh.rotation.x = -legSwing;
             this.rightShin.rotation.x = Math.max(0, -legSwing * 0.5);
-            this.rightFoot.position.y = -1.7 + Math.abs(Math.sin(this.walkCycle + Math.PI)) * 0.1;
+            this.rightFoot.position.y = (-1.7 + 1.8) + Math.abs(Math.sin(this.walkCycle + Math.PI)) * 0.1; // Ajustar posição base
 
             // Movimento sutil dos braços
             this.leftArm.rotation.x = legSwing * 0.5;
@@ -140,8 +140,8 @@ class AnimatedCharacter {
         this.head.rotation.z *= (1 - ease);
 
         // Resetar altura dos pés
-        this.leftFoot.position.y = THREE.MathUtils.lerp(this.leftFoot.position.y, -1.7, ease);
-        this.rightFoot.position.y = THREE.MathUtils.lerp(this.rightFoot.position.y, -1.7, ease);
+        this.leftFoot.position.y = THREE.MathUtils.lerp(this.leftFoot.position.y, -1.7 + 1.8, ease); // Ajustar posição base
+        this.rightFoot.position.y = THREE.MathUtils.lerp(this.rightFoot.position.y, -1.7 + 1.8, ease); // Ajustar posição base
     }
 
     setPosition(x, y, z) {
@@ -507,7 +507,8 @@ class MainRenderer {
         // Atualizar posição e rotação do personagem de terceira pessoa
         const camera = this.mainCamera.firstPersonCamera;
         if (camera && this.animatedCharacter) {
-            this.animatedCharacter.setPosition(camera.position.x, camera.position.y - 2, camera.position.z);
+            // Colocar o personagem no chão (y = 0) na mesma posição X e Z da câmera
+            this.animatedCharacter.setPosition(camera.position.x, 0, camera.position.z);
             this.animatedCharacter.setRotation(camera.rotation.y);
         }
 
