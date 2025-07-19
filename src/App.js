@@ -170,7 +170,7 @@ class AnimatedCharacter {
     }
 }
 
-// Classe para chão infinito
+// Classe para chão infinito com objetos
 class InfiniteFloor {
     constructor(scene, camera) {
         this.scene = scene;
@@ -178,10 +178,134 @@ class InfiniteFloor {
         this.chunkSize = 100; // Tamanho de cada chunk
         this.renderDistance = 3; // Quantos chunks ao redor carregar
         this.chunks = new Map(); // Armazena chunks ativos
+        this.chunkObjects = new Map(); // Armazena objetos de cada chunk
         this.lastPlayerChunk = { x: 0, z: 0 };
+
+        // Configurações para geração de objetos
+        this.objectDensity = 0.05; // Densidade de objetos por unidade quadrada (aumentado)
+        this.randomSeed = 12345; // Seed para geração consistente
 
         // Gerar chunks iniciais
         this.updateChunks();
+    }
+
+    // Gerador de números pseudo-aleatórios baseado em seed
+    seededRandom(chunkX, chunkZ, objectIndex = 0) {
+        const seed = this.randomSeed + chunkX * 73856093 + chunkZ * 19349663 + objectIndex * 83492791;
+        const x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+    }
+
+    // Criar objetos para um chunk
+    createChunkObjects(chunkX, chunkZ) {
+        const objects = [];
+        const chunkWorldX = chunkX * this.chunkSize;
+        const chunkWorldZ = chunkZ * this.chunkSize;
+
+        // Calcular número de objetos baseado na densidade
+        const numObjects = Math.floor(this.chunkSize * this.chunkSize * this.objectDensity);
+
+        for (let i = 0; i < numObjects; i++) {
+            const rand1 = this.seededRandom(chunkX, chunkZ, i * 3);
+            const rand2 = this.seededRandom(chunkX, chunkZ, i * 3 + 1);
+            const rand3 = this.seededRandom(chunkX, chunkZ, i * 3 + 2);
+
+            // Posição aleatória dentro do chunk
+            const x = chunkWorldX + rand1 * this.chunkSize;
+            const z = chunkWorldZ + rand2 * this.chunkSize;
+
+            // Tipo de objeto baseado no terceiro número aleatório
+            let object;
+            if (rand3 < 0.4) {
+                object = this.createTree(x, z);
+            } else if (rand3 < 0.7) {
+                object = this.createRock(x, z);
+            } else if (rand3 < 0.85) {
+                object = this.createBush(x, z);
+            } else {
+                object = this.createCrystal(x, z);
+            }
+
+            if (object) {
+                objects.push(object);
+                this.scene.add(object);
+            }
+        }
+
+        return objects;
+    }
+
+    // Criar uma árvore
+    createTree(x, z) {
+        const treeGroup = new THREE.Group();
+
+        // Tronco
+        const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 3, 8);
+        const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+        const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+        trunk.position.set(0, 1.5, 0);
+        treeGroup.add(trunk);
+
+        // Copa da árvore
+        const foliageGeometry = new THREE.SphereGeometry(2, 8, 6);
+        const foliageMaterial = new THREE.MeshBasicMaterial({ color: 0x228B22 });
+        const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+        foliage.position.set(0, 4, 0);
+        treeGroup.add(foliage);
+
+        treeGroup.position.set(x, 0, z);
+        return treeGroup;
+    }
+
+    // Criar uma rocha
+    createRock(x, z) {
+        const rockGeometry = new THREE.DodecahedronGeometry(1.5, 0);
+        const rockMaterial = new THREE.MeshBasicMaterial({ color: 0x696969 });
+        const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+
+        rock.position.set(x, 0.75, z);
+        rock.rotation.x = Math.random() * Math.PI;
+        rock.rotation.z = Math.random() * Math.PI;
+        rock.scale.set(
+            0.8 + Math.random() * 0.4,
+            0.8 + Math.random() * 0.4,
+            0.8 + Math.random() * 0.4
+        );
+
+        return rock;
+    }
+
+    // Criar um arbusto
+    createBush(x, z) {
+        const bushGeometry = new THREE.SphereGeometry(0.8, 6, 4);
+        const bushMaterial = new THREE.MeshBasicMaterial({ color: 0x32CD32 });
+        const bush = new THREE.Mesh(bushGeometry, bushMaterial);
+
+        bush.position.set(x, 0.4, z);
+        bush.scale.y = 0.6;
+
+        return bush;
+    }
+
+    // Criar um cristal
+    createCrystal(x, z) {
+        const crystalGeometry = new THREE.OctahedronGeometry(1.2, 0);
+        const crystalMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00FFFF,
+            transparent: true,
+            opacity: 0.8
+        });
+        const crystal = new THREE.Mesh(crystalGeometry, crystalMaterial);
+
+        crystal.position.set(x, 1.2, z);
+        crystal.rotation.y = Math.random() * Math.PI * 2;
+
+        // Marcar como cristal para animação
+        crystal.userData.isCrystal = true;
+        crystal.userData.baseY = 1.2;
+        crystal.userData.animationOffset = Math.random() * Math.PI * 2;
+
+        return crystal;
     }
 
     // Converte posição do mundo para coordenada de chunk
@@ -200,10 +324,16 @@ class InfiniteFloor {
     // Cria um chunk de chão
     createChunk(chunkX, chunkZ) {
         const geometry = new THREE.PlaneGeometry(this.chunkSize, this.chunkSize);
+
+        // Variar cor do chão baseado na posição para dar sensação de movimento
+        const colorVariation = (this.seededRandom(chunkX, chunkZ) - 0.5) * 0.3;
+        const baseColor = new THREE.Color(0x228b22);
+        baseColor.offsetHSL(0, 0, colorVariation);
+
         const material = new THREE.MeshBasicMaterial({
-            color: 0x228b22,
-            wireframe: false, // Mude para true para ver os chunks
-            side: THREE.DoubleSide // Garantir que seja visível dos dois lados
+            color: baseColor,
+            wireframe: false,
+            side: THREE.DoubleSide
         });
         const chunk = new THREE.Mesh(geometry, material);
 
@@ -250,7 +380,12 @@ class InfiniteFloor {
                         const chunk = this.createChunk(x, z);
                         this.chunks.set(key, chunk);
                         this.scene.add(chunk);
-                        console.log(`Chunk ${key} adicionado à cena`);
+
+                        // Criar objetos do chunk
+                        const objects = this.createChunkObjects(x, z);
+                        this.chunkObjects.set(key, objects);
+
+                        console.log(`Chunk ${key} adicionado à cena com ${objects.length} objetos`);
                     }
                 }
             }
@@ -258,11 +393,27 @@ class InfiniteFloor {
             // Remover chunks muito longe
             for (const [key, chunk] of this.chunks.entries()) {
                 if (!neededChunks.has(key)) {
+                    // Remover chunk do chão
                     this.scene.remove(chunk);
                     chunk.geometry.dispose();
                     chunk.material.dispose();
                     this.chunks.delete(key);
-                    console.log(`Chunk ${key} removido da cena`);
+
+                    // Remover objetos do chunk
+                    const objects = this.chunkObjects.get(key);
+                    if (objects) {
+                        objects.forEach(obj => {
+                            this.scene.remove(obj);
+                            // Dispose de geometrias e materiais dos objetos
+                            obj.traverse((child) => {
+                                if (child.geometry) child.geometry.dispose();
+                                if (child.material) child.material.dispose();
+                            });
+                        });
+                        this.chunkObjects.delete(key);
+                    }
+
+                    console.log(`Chunk ${key} e seus objetos removidos da cena`);
                 }
             }
 
@@ -273,16 +424,49 @@ class InfiniteFloor {
     // Chamado a cada frame
     update() {
         this.updateChunks();
+        this.animateObjects();
+    }
+
+    // Animar objetos do cenário
+    animateObjects() {
+        const time = performance.now() * 0.001; // Tempo em segundos
+
+        // Animar cristais
+        for (const [key, objects] of this.chunkObjects.entries()) {
+            objects.forEach(obj => {
+                if (obj.userData.isCrystal) {
+                    // Rotação constante
+                    obj.rotation.y += 0.02;
+
+                    // Movimento vertical flutuante
+                    const floatAmount = Math.sin(time * 2 + obj.userData.animationOffset) * 0.3;
+                    obj.position.y = obj.userData.baseY + floatAmount;
+                }
+            });
+        }
     }
 
     // Limpeza
     dispose() {
+        // Limpar chunks do chão
         for (const [key, chunk] of this.chunks.entries()) {
             this.scene.remove(chunk);
             chunk.geometry.dispose();
             chunk.material.dispose();
         }
         this.chunks.clear();
+
+        // Limpar objetos dos chunks
+        for (const [key, objects] of this.chunkObjects.entries()) {
+            objects.forEach(obj => {
+                this.scene.remove(obj);
+                obj.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            });
+        }
+        this.chunkObjects.clear();
     }
 }
 
@@ -528,6 +712,17 @@ class MainRenderer {
             this.infiniteFloor.update();
         }
 
+        // Atualizar debug com informações do cenário
+        if (this.mouseControl && this.infiniteFloor) {
+            const totalObjects = Array.from(this.infiniteFloor.chunkObjects.values())
+                .reduce((sum, objects) => sum + objects.length, 0);
+
+            this.mouseControl.updateDebugDisplay({
+                chunkCount: this.infiniteFloor.chunks.size,
+                objectCount: totalObjects
+            });
+        }
+
         this.renderer.render(this.scene, this.mainCamera.activeCamera);
     }
 
@@ -579,7 +774,7 @@ class MouseControl {
         this.updateDebugDisplay();
     }
 
-    updateDebugDisplay() {
+    updateDebugDisplay(sceneInfo = {}) {
         const camera = this.cameraManager.firstPersonCamera;
         const rotationX = (camera.rotation.x * 180 / Math.PI).toFixed(2);
         const rotationY = (camera.rotation.y * 180 / Math.PI).toFixed(2);
@@ -603,6 +798,8 @@ class MouseControl {
             <div>Teclas Pressionadas: ${keysStatus}</div>
             <div>Move Speed: ${this.moveSpeed}</div>
             <div>Sensitivity: ${this.sensitivity}</div>
+            ${sceneInfo.chunkCount ? `<div style="color: lightgreen;">Chunks Ativos: ${sceneInfo.chunkCount}</div>` : ''}
+            ${sceneInfo.objectCount ? `<div style="color: lightblue;">Objetos no Cenário: ${sceneInfo.objectCount}</div>` : ''}
             <div style="color: yellow;">Clique para capturar o mouse | WASD para mover</div>
             <div style="color: cyan;">Pressione C para alternar câmera</div>
         `;
