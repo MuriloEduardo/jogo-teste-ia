@@ -175,18 +175,50 @@ class InfiniteFloor {
     constructor(scene, camera) {
         this.scene = scene;
         this.camera = camera;
-        this.chunkSize = 100; // Tamanho de cada chunk
-        this.renderDistance = 3; // Quantos chunks ao redor carregar
+        this.chunkSize = 50; // Tamanho de cada chunk REDUZIDO
+        this.renderDistance = 2; // Quantos chunks ao redor carregar REDUZIDO
         this.chunks = new Map(); // Armazena chunks ativos
         this.chunkObjects = new Map(); // Armazena objetos de cada chunk
         this.lastPlayerChunk = { x: 0, z: 0 };
 
         // Configurações para geração de objetos
-        this.objectDensity = 0.05; // Densidade de objetos por unidade quadrada (aumentado)
+        this.objectDensity = 0.008; // Densidade REDUZIDA drasticamente
         this.randomSeed = 12345; // Seed para geração consistente
+        this.renderDistance = 2; // REDUZIDO de 3 para 2 chunks
+
+        // OTIMIZAÇÃO: Geometrias compartilhadas para economizar memória
+        this.sharedGeometries = this.createSharedGeometries();
+        this.sharedMaterials = this.createSharedMaterials();
 
         // Gerar chunks iniciais
         this.updateChunks();
+    }
+
+    // NOVA: Criar geometrias compartilhadas
+    createSharedGeometries() {
+        return {
+            trunk: new THREE.CylinderGeometry(0.3, 0.4, 3, 6), // Reduzido segments
+            foliage: new THREE.SphereGeometry(2, 6, 4), // Reduzido segments
+            rock: new THREE.DodecahedronGeometry(1.5, 0),
+            bush: new THREE.SphereGeometry(0.8, 6, 4),
+            crystal: new THREE.OctahedronGeometry(1.2, 0),
+            floor: new THREE.PlaneGeometry(this.chunkSize, this.chunkSize)
+        };
+    }
+
+    // NOVA: Criar materiais compartilhados
+    createSharedMaterials() {
+        return {
+            trunk: new THREE.MeshBasicMaterial({ color: 0x8B4513 }),
+            foliage: new THREE.MeshBasicMaterial({ color: 0x228B22 }),
+            rock: new THREE.MeshBasicMaterial({ color: 0x696969 }),
+            bush: new THREE.MeshBasicMaterial({ color: 0x32CD32 }),
+            crystal: new THREE.MeshBasicMaterial({
+                color: 0x00FFFF,
+                transparent: true,
+                opacity: 0.8
+            })
+        };
     }
 
     // Gerador de números pseudo-aleatórios baseado em seed
@@ -235,21 +267,17 @@ class InfiniteFloor {
         return objects;
     }
 
-    // Criar uma árvore
+    // Criar uma árvore OTIMIZADA
     createTree(x, z) {
         const treeGroup = new THREE.Group();
 
-        // Tronco
-        const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 3, 8);
-        const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
-        const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+        // Tronco usando geometria compartilhada
+        const trunk = new THREE.Mesh(this.sharedGeometries.trunk, this.sharedMaterials.trunk);
         trunk.position.set(0, 1.5, 0);
         treeGroup.add(trunk);
 
-        // Copa da árvore
-        const foliageGeometry = new THREE.SphereGeometry(2, 8, 6);
-        const foliageMaterial = new THREE.MeshBasicMaterial({ color: 0x228B22 });
-        const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+        // Copa da árvore usando geometria compartilhada
+        const foliage = new THREE.Mesh(this.sharedGeometries.foliage, this.sharedMaterials.foliage);
         foliage.position.set(0, 4, 0);
         treeGroup.add(foliage);
 
@@ -257,29 +285,21 @@ class InfiniteFloor {
         return treeGroup;
     }
 
-    // Criar uma rocha
+    // Criar uma rocha OTIMIZADA
     createRock(x, z) {
-        const rockGeometry = new THREE.DodecahedronGeometry(1.5, 0);
-        const rockMaterial = new THREE.MeshBasicMaterial({ color: 0x696969 });
-        const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+        const rock = new THREE.Mesh(this.sharedGeometries.rock, this.sharedMaterials.rock);
 
         rock.position.set(x, 0.75, z);
-        rock.rotation.x = Math.random() * Math.PI;
-        rock.rotation.z = Math.random() * Math.PI;
-        rock.scale.set(
-            0.8 + Math.random() * 0.4,
-            0.8 + Math.random() * 0.4,
-            0.8 + Math.random() * 0.4
-        );
+        // Simplificar rotação aleatória
+        rock.rotation.y = this.seededRandom(x, z, 999) * Math.PI * 2;
+        rock.scale.setScalar(0.8 + this.seededRandom(x, z, 998) * 0.4);
 
         return rock;
     }
 
-    // Criar um arbusto
+    // Criar um arbusto OTIMIZADO
     createBush(x, z) {
-        const bushGeometry = new THREE.SphereGeometry(0.8, 6, 4);
-        const bushMaterial = new THREE.MeshBasicMaterial({ color: 0x32CD32 });
-        const bush = new THREE.Mesh(bushGeometry, bushMaterial);
+        const bush = new THREE.Mesh(this.sharedGeometries.bush, this.sharedMaterials.bush);
 
         bush.position.set(x, 0.4, z);
         bush.scale.y = 0.6;
@@ -287,23 +307,17 @@ class InfiniteFloor {
         return bush;
     }
 
-    // Criar um cristal
+    // Criar um cristal OTIMIZADO
     createCrystal(x, z) {
-        const crystalGeometry = new THREE.OctahedronGeometry(1.2, 0);
-        const crystalMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00FFFF,
-            transparent: true,
-            opacity: 0.8
-        });
-        const crystal = new THREE.Mesh(crystalGeometry, crystalMaterial);
+        const crystal = new THREE.Mesh(this.sharedGeometries.crystal, this.sharedMaterials.crystal);
 
         crystal.position.set(x, 1.2, z);
-        crystal.rotation.y = Math.random() * Math.PI * 2;
+        crystal.rotation.y = this.seededRandom(x, z, 997) * Math.PI * 2;
 
         // Marcar como cristal para animação
         crystal.userData.isCrystal = true;
         crystal.userData.baseY = 1.2;
-        crystal.userData.animationOffset = Math.random() * Math.PI * 2;
+        crystal.userData.animationOffset = this.seededRandom(x, z, 996) * Math.PI * 2;
 
         return crystal;
     }
@@ -321,12 +335,10 @@ class InfiniteFloor {
         return `${chunkX}_${chunkZ}`;
     }
 
-    // Cria um chunk de chão
+    // Cria um chunk de chão OTIMIZADO
     createChunk(chunkX, chunkZ) {
-        const geometry = new THREE.PlaneGeometry(this.chunkSize, this.chunkSize);
-
         // Variar cor do chão baseado na posição para dar sensação de movimento
-        const colorVariation = (this.seededRandom(chunkX, chunkZ) - 0.5) * 0.3;
+        const colorVariation = (this.seededRandom(chunkX, chunkZ) - 0.5) * 0.2; // Reduzido variação
         const baseColor = new THREE.Color(0x228b22);
         baseColor.offsetHSL(0, 0, colorVariation);
 
@@ -335,7 +347,9 @@ class InfiniteFloor {
             wireframe: false,
             side: THREE.DoubleSide
         });
-        const chunk = new THREE.Mesh(geometry, material);
+
+        // Usar geometria compartilhada
+        const chunk = new THREE.Mesh(this.sharedGeometries.floor, material);
 
         // Posicionar chunk no mundo (ajustado para centralizar)
         chunk.position.set(
@@ -345,24 +359,18 @@ class InfiniteFloor {
         );
         chunk.rotation.x = -Math.PI / 2;
 
-        console.log(`Criando chunk em (${chunkX}, ${chunkZ}) - Posição mundo: (${chunk.position.x}, ${chunk.position.z})`);
-
         return chunk;
     }
 
-    // Atualiza chunks baseado na posição do jogador
+    // Atualiza chunks baseado na posição do jogador OTIMIZADO
     updateChunks() {
         const playerPos = this.camera.position;
         const currentChunk = this.worldToChunk(playerPos);
-
-        console.log(`Posição do jogador: (${playerPos.x.toFixed(2)}, ${playerPos.z.toFixed(2)}) - Chunk: (${currentChunk.x}, ${currentChunk.z})`);
 
         // Se o jogador mudou de chunk OU é a primeira vez
         if (currentChunk.x !== this.lastPlayerChunk.x ||
             currentChunk.z !== this.lastPlayerChunk.z ||
             this.chunks.size === 0) {
-
-            console.log(`Atualizando chunks. Chunks ativos: ${this.chunks.size}`);
 
             // Chunks que devem existir
             const neededChunks = new Set();
@@ -384,8 +392,6 @@ class InfiniteFloor {
                         // Criar objetos do chunk
                         const objects = this.createChunkObjects(x, z);
                         this.chunkObjects.set(key, objects);
-
-                        console.log(`Chunk ${key} adicionado à cena com ${objects.length} objetos`);
                     }
                 }
             }
@@ -395,8 +401,7 @@ class InfiniteFloor {
                 if (!neededChunks.has(key)) {
                     // Remover chunk do chão
                     this.scene.remove(chunk);
-                    chunk.geometry.dispose();
-                    chunk.material.dispose();
+                    if (chunk.material) chunk.material.dispose();
                     this.chunks.delete(key);
 
                     // Remover objetos do chunk
@@ -404,16 +409,9 @@ class InfiniteFloor {
                     if (objects) {
                         objects.forEach(obj => {
                             this.scene.remove(obj);
-                            // Dispose de geometrias e materiais dos objetos
-                            obj.traverse((child) => {
-                                if (child.geometry) child.geometry.dispose();
-                                if (child.material) child.material.dispose();
-                            });
                         });
                         this.chunkObjects.delete(key);
                     }
-
-                    console.log(`Chunk ${key} e seus objetos removidos da cena`);
                 }
             }
 
@@ -424,35 +422,43 @@ class InfiniteFloor {
     // Chamado a cada frame
     update() {
         this.updateChunks();
-        this.animateObjects();
-    }
 
-    // Animar objetos do cenário
-    animateObjects() {
-        const time = performance.now() * 0.001; // Tempo em segundos
+        // OTIMIZAÇÃO: Animar objetos apenas a cada 3 frames
+        if (!this.animationFrameCount) this.animationFrameCount = 0;
+        this.animationFrameCount++;
 
-        // Animar cristais
-        for (const [key, objects] of this.chunkObjects.entries()) {
-            objects.forEach(obj => {
-                if (obj.userData.isCrystal) {
-                    // Rotação constante
-                    obj.rotation.y += 0.02;
-
-                    // Movimento vertical flutuante
-                    const floatAmount = Math.sin(time * 2 + obj.userData.animationOffset) * 0.3;
-                    obj.position.y = obj.userData.baseY + floatAmount;
-                }
-            });
+        if (this.animationFrameCount % 3 === 0) {
+            this.animateObjects();
         }
     }
 
-    // Limpeza
+    // Animar objetos do cenário OTIMIZADO
+    animateObjects() {
+        const time = performance.now() * 0.001; // Tempo em segundos
+
+        // Animar apenas cristais (removido console.log)
+        for (const [key, objects] of this.chunkObjects.entries()) {
+            for (let i = 0; i < objects.length; i++) {
+                const obj = objects[i];
+                if (obj.userData.isCrystal) {
+                    // Rotação constante mais lenta
+                    obj.rotation.y += 0.01;
+
+                    // Movimento vertical flutuante mais simples
+                    const floatAmount = Math.sin(time * 1.5 + obj.userData.animationOffset) * 0.2;
+                    obj.position.y = obj.userData.baseY + floatAmount;
+                }
+            }
+        }
+    }
+
+    // Limpeza OTIMIZADA
     dispose() {
         // Limpar chunks do chão
         for (const [key, chunk] of this.chunks.entries()) {
             this.scene.remove(chunk);
-            chunk.geometry.dispose();
-            chunk.material.dispose();
+            // Não dispose da geometria compartilhada, apenas do material específico
+            if (chunk.material) chunk.material.dispose();
         }
         this.chunks.clear();
 
@@ -460,13 +466,22 @@ class InfiniteFloor {
         for (const [key, objects] of this.chunkObjects.entries()) {
             objects.forEach(obj => {
                 this.scene.remove(obj);
-                obj.traverse((child) => {
-                    if (child.geometry) child.geometry.dispose();
-                    if (child.material) child.material.dispose();
-                });
+                // Para grupos (árvores), percorrer filhos
+                if (obj.children) {
+                    obj.children.forEach(child => {
+                        if (child.material && child.material !== this.sharedMaterials.trunk &&
+                            child.material !== this.sharedMaterials.foliage) {
+                            child.material.dispose();
+                        }
+                    });
+                }
             });
         }
         this.chunkObjects.clear();
+
+        // Limpar geometrias e materiais compartilhados
+        Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
+        Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
     }
 }
 
@@ -712,8 +727,8 @@ class MainRenderer {
             this.infiniteFloor.update();
         }
 
-        // Atualizar debug com informações do cenário
-        if (this.mouseControl && this.infiniteFloor) {
+        // Atualizar debug com informações do cenário (OTIMIZADO: menos frequente)
+        if (this.mouseControl && this.infiniteFloor && this.debugUpdateCounter % 30 === 0) {
             const totalObjects = Array.from(this.infiniteFloor.chunkObjects.values())
                 .reduce((sum, objects) => sum + objects.length, 0);
 
@@ -722,6 +737,9 @@ class MainRenderer {
                 objectCount: totalObjects
             });
         }
+
+        if (!this.debugUpdateCounter) this.debugUpdateCounter = 0;
+        this.debugUpdateCounter++;
 
         this.renderer.render(this.scene, this.mainCamera.activeCamera);
     }
@@ -827,7 +845,12 @@ class MouseControl {
                 // Limitar rotação vertical para não dar voltas completas
                 camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
 
-                this.updateDebugDisplay();
+                // OTIMIZADO: Atualizar debug menos frequentemente
+                if (!this.mouseMoveCounter) this.mouseMoveCounter = 0;
+                this.mouseMoveCounter++;
+                if (this.mouseMoveCounter % 10 === 0) {
+                    this.updateDebugDisplay();
+                }
             }
         };
 
@@ -865,7 +888,7 @@ class MouseControl {
         document.addEventListener('keyup', this.handleKeyUp);
     }
 
-    // Método para atualizar movimento
+    // Método para atualizar movimento OTIMIZADO
     updateMovement() {
         if (!this.isPointerLocked) return;
 
@@ -888,7 +911,12 @@ class MouseControl {
             // Aplicar movimento
             camera.position.add(direction.multiplyScalar(this.moveSpeed));
 
-            this.updateDebugDisplay();
+            // OTIMIZADO: Atualizar debug menos frequentemente durante movimento
+            if (!this.movementCounter) this.movementCounter = 0;
+            this.movementCounter++;
+            if (this.movementCounter % 20 === 0) {
+                this.updateDebugDisplay();
+            }
         }
     }
 
