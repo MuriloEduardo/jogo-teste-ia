@@ -179,6 +179,7 @@ class InfiniteFloor {
         this.renderDistance = 2; // Quantos chunks ao redor carregar REDUZIDO
         this.chunks = new Map(); // Armazena chunks ativos
         this.chunkObjects = new Map(); // Armazena objetos de cada chunk
+        this.chunkColliders = new Map(); // NOVO: Armazena colidores de cada chunk
         this.lastPlayerChunk = { x: 0, z: 0 };
 
         // Configurações para geração de objetos
@@ -231,6 +232,7 @@ class InfiniteFloor {
     // Criar objetos para um chunk
     createChunkObjects(chunkX, chunkZ) {
         const objects = [];
+        const colliders = []; // NOVO: Array para colidores
         const chunkWorldX = chunkX * this.chunkSize;
         const chunkWorldZ = chunkZ * this.chunkSize;
 
@@ -248,23 +250,33 @@ class InfiniteFloor {
 
             // Tipo de objeto baseado no terceiro número aleatório
             let object;
+            let collider;
+
             if (rand3 < 0.4) {
                 object = this.createTree(x, z);
+                collider = this.createTreeCollider(x, z);
             } else if (rand3 < 0.7) {
                 object = this.createRock(x, z);
+                collider = this.createRockCollider(x, z);
             } else if (rand3 < 0.85) {
                 object = this.createBush(x, z);
+                collider = this.createBushCollider(x, z);
             } else {
                 object = this.createCrystal(x, z);
+                collider = null; // Cristais não têm colisão (podem ser atravessados)
             }
 
             if (object) {
                 objects.push(object);
                 this.scene.add(object);
+
+                if (collider) {
+                    colliders.push(collider);
+                }
             }
         }
 
-        return objects;
+        return { objects, colliders };
     }
 
     // Criar uma árvore OTIMIZADA
@@ -320,6 +332,72 @@ class InfiniteFloor {
         crystal.userData.animationOffset = this.seededRandom(x, z, 996) * Math.PI * 2;
 
         return crystal;
+    }
+
+    // NOVO: Criar colisor para árvore
+    createTreeCollider(x, z) {
+        return {
+            type: 'tree',
+            x: x,
+            z: z,
+            radius: 1.5, // Raio do colisor circular
+            height: 6
+        };
+    }
+
+    // NOVO: Criar colisor para rocha
+    createRockCollider(x, z) {
+        return {
+            type: 'rock',
+            x: x,
+            z: z,
+            radius: 1.8, // Raio do colisor circular
+            height: 1.5
+        };
+    }
+
+    // NOVO: Criar colisor para arbusto
+    createBushCollider(x, z) {
+        return {
+            type: 'bush',
+            x: x,
+            z: z,
+            radius: 1.0, // Raio do colisor circular
+            height: 0.8
+        };
+    }
+
+    // NOVO: Verificar colisão circular
+    checkCollision(playerX, playerZ, playerRadius = 0.8) {
+        const currentChunk = this.worldToChunk({ x: playerX, z: playerZ });
+
+        // Verificar colisões nos chunks próximos
+        for (let x = currentChunk.x - 1; x <= currentChunk.x + 1; x++) {
+            for (let z = currentChunk.z - 1; z <= currentChunk.z + 1; z++) {
+                const key = this.chunkKey(x, z);
+                const colliders = this.chunkColliders.get(key);
+
+                if (colliders) {
+                    for (const collider of colliders) {
+                        const dx = playerX - collider.x;
+                        const dz = playerZ - collider.z;
+                        const distance = Math.sqrt(dx * dx + dz * dz);
+
+                        // Se a distância é menor que a soma dos raios, há colisão
+                        if (distance < (playerRadius + collider.radius)) {
+                            return {
+                                collision: true,
+                                type: collider.type,
+                                pushX: dx / distance * 0.5, // Força de empurrão
+                                pushZ: dz / distance * 0.5
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
+        return { collision: false };
     }
 
     // Converte posição do mundo para coordenada de chunk
@@ -389,9 +467,10 @@ class InfiniteFloor {
                         this.chunks.set(key, chunk);
                         this.scene.add(chunk);
 
-                        // Criar objetos do chunk
-                        const objects = this.createChunkObjects(x, z);
+                        // Criar objetos e colidores do chunk
+                        const { objects, colliders } = this.createChunkObjects(x, z);
                         this.chunkObjects.set(key, objects);
+                        this.chunkColliders.set(key, colliders); // NOVO: Armazenar colidores
                     }
                 }
             }
@@ -412,6 +491,9 @@ class InfiniteFloor {
                         });
                         this.chunkObjects.delete(key);
                     }
+
+                    // NOVO: Remover colidores do chunk
+                    this.chunkColliders.delete(key);
                 }
             }
 
@@ -478,6 +560,9 @@ class InfiniteFloor {
             });
         }
         this.chunkObjects.clear();
+
+        // NOVO: Limpar colidores
+        this.chunkColliders.clear();
 
         // Limpar geometrias e materiais compartilhados
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
@@ -671,8 +756,8 @@ class MainRenderer {
         // Chão infinito (substituindo o chão fixo)
         this.infiniteFloor = new InfiniteFloor(this.scene, this.mainCamera.firstPersonCamera);
 
-        // Controle de mouse
-        this.mouseControl = new MouseControl(this.renderer, this.mainCamera);
+        // Controle de mouse (NOVO: Passando referência do InfiniteFloor)
+        this.mouseControl = new MouseControl(this.renderer, this.mainCamera, this.infiniteFloor);
 
         // Iniciar loop de animação
         this.animate();
@@ -755,9 +840,10 @@ class MainRenderer {
 
 // Classe para controle de mouse e movimento
 class MouseControl {
-    constructor(renderer, cameraManager) {
+    constructor(renderer, cameraManager, infiniteFloor = null) { // NOVO: Receber referência do InfiniteFloor
         this.renderer = renderer;
         this.cameraManager = cameraManager;
+        this.infiniteFloor = infiniteFloor; // NOVO: Para verificar colisões
         this.isPointerLocked = false;
         this.sensitivity = 0.002;
 
@@ -806,6 +892,17 @@ class MouseControl {
 
         const isMovingText = this.isMoving() ? 'ANDANDO' : 'PARADO';
 
+        // NOVO: Verificar se há colisão na posição atual
+        let collisionInfo = '';
+        if (this.infiniteFloor) {
+            const collision = this.infiniteFloor.checkCollision(camera.position.x, camera.position.z);
+            if (collision.collision) {
+                collisionInfo = `<div style="color: red;">⚠️ COLISÃO COM ${collision.type.toUpperCase()}</div>`;
+            } else {
+                collisionInfo = `<div style="color: lightgreen;">✓ Sem colisões</div>`;
+            }
+        }
+
         this.debugDiv.innerHTML = `
             <div>Pointer Lock: ${this.isPointerLocked ? 'ON' : 'OFF'}</div>
             <div>Camera Mode: ${this.cameraManager.isFirstPerson ? 'PRIMEIRA PESSOA' : 'TERCEIRA PESSOA'}</div>
@@ -818,6 +915,7 @@ class MouseControl {
             <div>Sensitivity: ${this.sensitivity}</div>
             ${sceneInfo.chunkCount ? `<div style="color: lightgreen;">Chunks Ativos: ${sceneInfo.chunkCount}</div>` : ''}
             ${sceneInfo.objectCount ? `<div style="color: lightblue;">Objetos no Cenário: ${sceneInfo.objectCount}</div>` : ''}
+            ${collisionInfo}
             <div style="color: yellow;">Clique para capturar o mouse | WASD para mover</div>
             <div style="color: cyan;">Pressione C para alternar câmera</div>
         `;
@@ -888,7 +986,7 @@ class MouseControl {
         document.addEventListener('keyup', this.handleKeyUp);
     }
 
-    // Método para atualizar movimento OTIMIZADO
+    // Método para atualizar movimento OTIMIZADO com COLISÃO
     updateMovement() {
         if (!this.isPointerLocked) return;
 
@@ -908,8 +1006,33 @@ class MouseControl {
             // Aplicar rotação Y da câmera à direção
             direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
 
-            // Aplicar movimento
-            camera.position.add(direction.multiplyScalar(this.moveSpeed));
+            // NOVO: Calcular nova posição
+            const newPosition = camera.position.clone();
+            newPosition.add(direction.multiplyScalar(this.moveSpeed));
+
+            // NOVO: Verificar colisão se o InfiniteFloor está disponível
+            if (this.infiniteFloor) {
+                const collision = this.infiniteFloor.checkCollision(newPosition.x, newPosition.z);
+
+                if (collision.collision) {
+                    // Se há colisão, empurrar o jogador para longe do objeto
+                    newPosition.x += collision.pushX;
+                    newPosition.z += collision.pushZ;
+
+                    // Verificar novamente para garantir que não está mais colidindo
+                    const secondCheck = this.infiniteFloor.checkCollision(newPosition.x, newPosition.z);
+                    if (!secondCheck.collision) {
+                        camera.position.copy(newPosition);
+                    }
+                    // Se ainda há colisão, não mover
+                } else {
+                    // Sem colisão, mover normalmente
+                    camera.position.copy(newPosition);
+                }
+            } else {
+                // Fallback: movimento sem colisão
+                camera.position.add(direction.multiplyScalar(this.moveSpeed));
+            }
 
             // OTIMIZADO: Atualizar debug menos frequentemente durante movimento
             if (!this.movementCounter) this.movementCounter = 0;
