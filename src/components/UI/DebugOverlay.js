@@ -63,8 +63,18 @@ export class DebugOverlay {
             isMoving,
             rotation,
             chunks,
-            memoryInfo
+            memoryInfo,
+            weaponInfo
         } = data;
+
+        let weaponDebug = '';
+        if (weaponInfo) {
+            weaponDebug = `
+
+WEAPON:
+Ammo: ${weaponInfo.ammo}/${weaponInfo.totalAmmo}
+Status: ${weaponInfo.isReloading ? 'Reloading...' : 'Ready'}`;
+        }
 
         return `=== DEBUG INFO ===
 FPS: ${this.fps}
@@ -76,7 +86,7 @@ Moving: ${isMoving ? 'Yes' : 'No'}
 Rotation: ${rotation.toFixed(2)}°
 
 CAMERA:
-Mode: ${cameraMode}
+Mode: ${cameraMode}${weaponDebug}
 
 WORLD:
 Active Chunks: ${chunks}
@@ -89,7 +99,9 @@ CONTROLS:
 [F1] Toggle Debug
 [C] Toggle Camera
 [WASD] Move
-[Mouse] Look Around`;
+[Mouse] Look Around
+[Click] Fire Weapon
+[R] Reload`;
     }
 
     dispose() {

@@ -1,0 +1,343 @@
+import * as THREE from 'three';
+
+export class WeaponSystem {
+    constructor(scene, camera) {
+        this.scene = scene;
+        this.camera = camera;
+        this.weapon = null;
+        this.bullets = [];
+        this.maxBullets = 100;
+        this.fireRate = 150; // ms entre disparos
+        this.lastFireTime = 0;
+        this.bulletSpeed = 50;
+        this.bulletLifetime = 3000; // 3 segundos
+        this.muzzleFlash = null;
+        this.isReloading = false;
+        this.ammo = 30;
+        this.maxAmmo = 30;
+        this.totalAmmo = 120;
+        
+        this.createWeapon();
+        this.createMuzzleFlash();
+        this.setupEventListeners();
+    }
+
+    createWeapon() {
+        // Grupo da arma
+        this.weapon = new THREE.Group();
+        
+        // Cano da arma
+        const barrelGeometry = new THREE.CylinderGeometry(0.02, 0.025, 0.4, 8);
+        const barrelMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+        const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
+        barrel.rotation.z = Math.PI / 2;
+        barrel.position.set(0.2, 0, 0);
+        
+        // Corpo da arma
+        const bodyGeometry = new THREE.BoxGeometry(0.3, 0.15, 0.05);
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.position.set(0, -0.05, 0);
+        
+        // Cabo da arma
+        const gripGeometry = new THREE.BoxGeometry(0.08, 0.2, 0.05);
+        const gripMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
+        const grip = new THREE.Mesh(gripGeometry, gripMaterial);
+        grip.position.set(-0.1, -0.15, 0);
+        grip.rotation.z = -0.2;
+        
+        // Mira
+        const sightGeometry = new THREE.BoxGeometry(0.02, 0.03, 0.02);
+        const sightMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
+        const sight = new THREE.Mesh(sightGeometry, sightMaterial);
+        sight.position.set(0.15, 0.08, 0);
+        
+        this.weapon.add(barrel, body, grip, sight);
+        
+        // Posicionar arma na câmera
+        this.weapon.position.set(0.3, -0.2, -0.5);
+        this.weapon.rotation.y = 0.1;
+        this.weapon.rotation.x = -0.05;
+        
+        this.camera.add(this.weapon);
+    }
+
+    createMuzzleFlash() {
+        const flashGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+        const flashMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffff00,
+            transparent: true,
+            opacity: 0
+        });
+        this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
+        this.muzzleFlash.position.set(0.4, 0, 0);
+        this.weapon.add(this.muzzleFlash);
+    }
+
+    setupEventListeners() {
+        this.isMouseDown = false;
+        
+        document.addEventListener('mousedown', (event) => {
+            if (event.button === 0) { // Botão esquerdo
+                this.isMouseDown = true;
+                this.startFiring();
+            }
+        });
+        
+        document.addEventListener('mouseup', (event) => {
+            if (event.button === 0) {
+                this.isMouseDown = false;
+            }
+        });
+        
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'r' || event.key === 'R') {
+                this.reload();
+            }
+        });
+    }
+
+    startFiring() {
+        if (this.canFire()) {
+            this.fire();
+            
+            // Disparo automático enquanto segura o botão
+            setTimeout(() => {
+                if (this.isMouseDown && this.canFire()) {
+                    this.startFiring();
+                }
+            }, this.fireRate);
+        }
+    }
+
+    canFire() {
+        const now = Date.now();
+        return !this.isReloading && 
+               this.ammo > 0 && 
+               (now - this.lastFireTime) >= this.fireRate;
+    }
+
+    fire() {
+        if (!this.canFire()) return;
+        
+        this.lastFireTime = Date.now();
+        this.ammo--;
+        
+        this.createBullet();
+        this.showMuzzleFlash();
+        this.addWeaponRecoil();
+        
+        // Auto reload quando acabar munição
+        if (this.ammo <= 0 && this.totalAmmo > 0) {
+            setTimeout(() => this.reload(), 200);
+        }
+    }
+
+    createBullet() {
+        // Geometria da bala
+        const bulletGeometry = new THREE.SphereGeometry(0.02, 4, 4);
+        const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+        const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+        
+        // Posição inicial (ponta da arma)
+        const weaponWorldPosition = new THREE.Vector3();
+        this.weapon.getWorldPosition(weaponWorldPosition);
+        bullet.position.copy(weaponWorldPosition);
+        bullet.position.add(new THREE.Vector3(0.4, 0, 0));
+        
+        // Direção do disparo
+        const direction = new THREE.Vector3(0, 0, -1);
+        direction.applyQuaternion(this.camera.quaternion);
+        
+        // Adicionar pequena dispersão
+        direction.x += (Math.random() - 0.5) * 0.05;
+        direction.y += (Math.random() - 0.5) * 0.05;
+        
+        bullet.direction = direction.normalize();
+        bullet.speed = this.bulletSpeed;
+        bullet.lifetime = this.bulletLifetime;
+        bullet.createdAt = Date.now();
+        
+        this.bullets.push(bullet);
+        this.scene.add(bullet);
+        
+        // Limpar balas antigas se exceder limite
+        if (this.bullets.length > this.maxBullets) {
+            const oldBullet = this.bullets.shift();
+            this.scene.remove(oldBullet);
+            oldBullet.geometry.dispose();
+            oldBullet.material.dispose();
+        }
+    }
+
+    showMuzzleFlash() {
+        this.muzzleFlash.material.opacity = 1;
+        setTimeout(() => {
+            this.muzzleFlash.material.opacity = 0;
+        }, 50);
+    }
+
+    addWeaponRecoil() {
+        // Animação de recuo da arma
+        const originalPosition = this.weapon.position.clone();
+        const originalRotation = this.weapon.rotation.clone();
+        
+        // Recuo
+        this.weapon.position.z += 0.02;
+        this.weapon.rotation.x -= 0.02;
+        
+        // Voltar posição original
+        setTimeout(() => {
+            this.weapon.position.copy(originalPosition);
+            this.weapon.rotation.copy(originalRotation);
+        }, 100);
+    }
+
+    reload() {
+        if (this.isReloading || this.totalAmmo <= 0 || this.ammo >= this.maxAmmo) return;
+        
+        this.isReloading = true;
+        
+        setTimeout(() => {
+            const ammoNeeded = this.maxAmmo - this.ammo;
+            const ammoToReload = Math.min(ammoNeeded, this.totalAmmo);
+            
+            this.ammo += ammoToReload;
+            this.totalAmmo -= ammoToReload;
+            this.isReloading = false;
+        }, 2000); // 2 segundos para recarregar
+    }
+
+    update(deltaTime) {
+        // Atualizar balas
+        for (let i = this.bullets.length - 1; i >= 0; i--) {
+            const bullet = this.bullets[i];
+            
+            // Mover bala
+            bullet.position.add(
+                bullet.direction.clone().multiplyScalar(bullet.speed * deltaTime)
+            );
+            
+            // Verificar tempo de vida
+            if (Date.now() - bullet.createdAt > bullet.lifetime) {
+                this.scene.remove(bullet);
+                bullet.geometry.dispose();
+                bullet.material.dispose();
+                this.bullets.splice(i, 1);
+                continue;
+            }
+            
+            // Verificar colisão com objetos
+            this.checkBulletCollisions(bullet, i);
+        }
+    }
+
+    checkBulletCollisions(bullet, bulletIndex) {
+        // Raycasting para detectar colisões
+        const raycaster = new THREE.Raycaster(bullet.position, bullet.direction);
+        const intersects = raycaster.intersectObjects(this.scene.children, true);
+        
+        // Filtrar objetos que não são balas nem a arma
+        const validIntersects = intersects.filter(intersect => 
+            !this.bullets.includes(intersect.object) &&
+            !this.weapon.children.includes(intersect.object) &&
+            intersect.object !== this.weapon
+        );
+        
+        if (validIntersects.length > 0 && validIntersects[0].distance < 0.5) {
+            // Criar efeito de impacto
+            this.createImpactEffect(bullet.position);
+            
+            // Remover bala
+            this.scene.remove(bullet);
+            bullet.geometry.dispose();
+            bullet.material.dispose();
+            this.bullets.splice(bulletIndex, 1);
+        }
+    }
+
+    createImpactEffect(position) {
+        // Efeito de fagulhas
+        const particleCount = 10;
+        const particles = new THREE.Group();
+        
+        for (let i = 0; i < particleCount; i++) {
+            const particleGeometry = new THREE.SphereGeometry(0.005, 3, 3);
+            const particleMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xff4400,
+                transparent: true,
+                opacity: 1
+            });
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            
+            particle.position.copy(position);
+            particle.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+            );
+            
+            particles.add(particle);
+        }
+        
+        this.scene.add(particles);
+        
+        // Animar partículas
+        let fadeTime = 500;
+        const startTime = Date.now();
+        
+        const animateParticles = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = elapsed / fadeTime;
+            
+            particles.children.forEach(particle => {
+                particle.position.add(particle.velocity.clone().multiplyScalar(0.02));
+                particle.material.opacity = 1 - progress;
+            });
+            
+            if (progress < 1) {
+                requestAnimationFrame(animateParticles);
+            } else {
+                this.scene.remove(particles);
+                particles.children.forEach(particle => {
+                    particle.geometry.dispose();
+                    particle.material.dispose();
+                });
+            }
+        };
+        
+        animateParticles();
+    }
+
+    getAmmoInfo() {
+        return {
+            ammo: this.ammo,
+            totalAmmo: this.totalAmmo,
+            isReloading: this.isReloading
+        };
+    }
+
+    dispose() {
+        // Limpar todas as balas
+        this.bullets.forEach(bullet => {
+            this.scene.remove(bullet);
+            bullet.geometry.dispose();
+            bullet.material.dispose();
+        });
+        this.bullets = [];
+        
+        // Limpar arma
+        if (this.weapon) {
+            this.weapon.children.forEach(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+            this.camera.remove(this.weapon);
+        }
+        
+        // Remover event listeners
+        document.removeEventListener('mousedown', this.handleMouseDown);
+        document.removeEventListener('mouseup', this.handleMouseUp);
+        document.removeEventListener('keydown', this.handleKeyDown);
+    }
+}

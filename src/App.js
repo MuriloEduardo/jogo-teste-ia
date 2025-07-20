@@ -9,6 +9,8 @@ import { MainRenderer } from "./components/Renderer/MainRenderer";
 import { MouseControl } from "./components/Controls/MouseControl";
 import { InfiniteFloor } from "./components/World/InfiniteFloor";
 import { DebugOverlay } from "./components/UI/DebugOverlay";
+import { WeaponSystem } from "./components/Weapon/WeaponSystem";
+import { WeaponHUD } from "./components/UI/WeaponHUD";
 
 // Classe principal do jogo
 class GameEngine {
@@ -126,8 +128,12 @@ class GameEngine {
         // Inicializar mundo
         this.infiniteFloor = new InfiniteFloor(this.scene);
 
+        // Inicializar sistema de arma
+        this.weaponSystem = new WeaponSystem(this.scene, this.mainCamera.firstPersonCamera);
+
         // Inicializar UI
         this.debugOverlay = new DebugOverlay();
+        this.weaponHUD = new WeaponHUD();
     }
 
     initializeEventHandlers() {
@@ -246,6 +252,13 @@ class GameEngine {
         // Atualizar mundo
         this.infiniteFloor.updateChunks(this.mainCamera.firstPersonCamera.position);
 
+        // Atualizar sistema de arma
+        const deltaTime = 0.016; // ~60fps
+        this.weaponSystem.update(deltaTime);
+
+        // Atualizar HUD da arma
+        this.weaponHUD.update(this.weaponSystem.getAmmoInfo());
+
         // Atualizar debug overlay
         if (this.debugOverlay.visible) {
             const debugData = {
@@ -255,7 +268,8 @@ class GameEngine {
                 isMoving: isMoving,
                 rotation: (this.mouseControl.rotationY * 180 / Math.PI),
                 chunks: this.infiniteFloor.chunks.size,
-                memoryInfo: (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : 'N/A')
+                memoryInfo: (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : 'N/A'),
+                weaponInfo: this.weaponSystem.getAmmoInfo()
             };
             this.debugOverlay.update(debugData);
         }
@@ -270,6 +284,8 @@ class GameEngine {
         if (this.animatedCharacter) this.animatedCharacter.dispose();
         if (this.infiniteFloor) this.infiniteFloor.dispose();
         if (this.debugOverlay) this.debugOverlay.dispose();
+        if (this.weaponSystem) this.weaponSystem.dispose();
+        if (this.weaponHUD) this.weaponHUD.dispose();
 
         // Remover event listeners
         document.removeEventListener('keydown', this.keyDownHandler);
