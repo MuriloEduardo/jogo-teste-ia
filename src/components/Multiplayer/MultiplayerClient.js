@@ -35,7 +35,7 @@ export class MultiplayerClient {
     connect() {
         console.log('🔗 Conectando ao servidor multiplayer...');
 
-        this.socket = io('http://localhost:3001', {
+        this.socket = io(process.env.SERVER_URL, {
             transports: ['websocket'],
             upgrade: false
         });
