@@ -11,6 +11,8 @@ import { InfiniteFloor } from "./components/World/InfiniteFloor";
 import { DebugOverlay } from "./components/UI/DebugOverlay";
 import { WeaponSystem } from "./components/Weapon/WeaponSystem";
 import { WeaponHUD } from "./components/UI/WeaponHUD";
+import { MultiplayerClient } from "./components/Multiplayer/MultiplayerClient";
+import { MultiplayerHUD } from "./components/UI/MultiplayerHUD";
 
 // Classe principal do jogo
 class GameEngine {
@@ -121,6 +123,13 @@ class GameEngine {
         this.mouseControl = new MouseControl();
         this.mouseControl.init(this.rendererInstance.getDomElement());
 
+        // Inicializar cliente multiplayer
+        this.multiplayerClient = new MultiplayerClient(
+            this.scene, 
+            this.mainCamera.firstPersonCamera, 
+            null // Será definido após criar o WeaponSystem
+        );
+
         // Inicializar personagens
         this.firstPersonLegs = new FirstPersonLegs(this.scene, this.mainCamera.firstPersonCamera);
         this.animatedCharacter = new AnimatedCharacter(this.scene);
@@ -128,12 +137,29 @@ class GameEngine {
         // Inicializar mundo
         this.infiniteFloor = new InfiniteFloor(this.scene);
 
-        // Inicializar sistema de arma
-        this.weaponSystem = new WeaponSystem(this.scene, this.mainCamera.firstPersonCamera);
+        // Inicializar sistema de arma (com suporte multiplayer)
+        this.weaponSystem = new WeaponSystem(
+            this.scene, 
+            this.mainCamera.firstPersonCamera, 
+            this.multiplayerClient
+        );
+
+        // Conectar weapon system ao multiplayer client
+        this.multiplayerClient.localWeaponSystem = this.weaponSystem;
 
         // Inicializar UI
         this.debugOverlay = new DebugOverlay();
         this.weaponHUD = new WeaponHUD();
+        this.multiplayerHUD = new MultiplayerHUD();
+        
+        // Mostrar mensagem de conexão
+        setTimeout(() => {
+            if (this.multiplayerClient.isConnected()) {
+                this.multiplayerHUD.showConnectionMessage('Conectado ao servidor multiplayer!', 'success');
+            } else {
+                this.multiplayerHUD.showConnectionMessage('Modo offline - Inicie o servidor para multiplayer', 'warning');
+            }
+        }, 2000);
     }
 
     initializeEventHandlers() {
@@ -256,8 +282,25 @@ class GameEngine {
         const deltaTime = 0.016; // ~60fps
         this.weaponSystem.update(deltaTime);
 
-        // Atualizar HUD da arma
+        // Atualizar multiplayer
+        this.multiplayerClient.update();
+        
+        // Enviar posição para servidor multiplayer
+        if (this.multiplayerClient.isConnected()) {
+            this.multiplayerClient.sendPlayerUpdate(
+                this.mainCamera.firstPersonCamera.position,
+                {
+                    x: this.mouseControl.rotationX,
+                    y: this.mouseControl.rotationY,
+                    z: 0
+                },
+                velocity
+            );
+        }
+
+        // Atualizar HUDs
         this.weaponHUD.update(this.weaponSystem.getAmmoInfo());
+        this.multiplayerHUD.update(this.multiplayerClient);
 
         // Atualizar debug overlay
         if (this.debugOverlay.visible) {
@@ -269,7 +312,11 @@ class GameEngine {
                 rotation: (this.mouseControl.rotationY * 180 / Math.PI),
                 chunks: this.infiniteFloor.chunks.size,
                 memoryInfo: (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : 'N/A'),
-                weaponInfo: this.weaponSystem.getAmmoInfo()
+                weaponInfo: this.weaponSystem.getAmmoInfo(),
+                multiplayerInfo: {
+                    connected: this.multiplayerClient.isConnected(),
+                    players: this.multiplayerClient.getConnectedPlayersCount()
+                }
             };
             this.debugOverlay.update(debugData);
         }
@@ -286,6 +333,8 @@ class GameEngine {
         if (this.debugOverlay) this.debugOverlay.dispose();
         if (this.weaponSystem) this.weaponSystem.dispose();
         if (this.weaponHUD) this.weaponHUD.dispose();
+        if (this.multiplayerClient) this.multiplayerClient.cleanup();
+        if (this.multiplayerHUD) this.multiplayerHUD.dispose();
 
         // Remover event listeners
         document.removeEventListener('keydown', this.keyDownHandler);

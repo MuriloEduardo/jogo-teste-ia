@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 
 export class WeaponSystem {
-    constructor(scene, camera) {
+    constructor(scene, camera, multiplayerClient = null) {
         this.scene = scene;
         this.camera = camera;
+        this.multiplayerClient = multiplayerClient;
         this.weapon = null;
         this.bullets = [];
         this.maxBullets = 100;
@@ -20,6 +21,11 @@ export class WeaponSystem {
         this.createWeapon();
         this.createMuzzleFlash();
         this.setupEventListeners();
+        
+        // Configurar callback de hit marker para multiplayer
+        if (this.multiplayerClient) {
+            this.multiplayerClient.onHitMarker = () => this.showHitMarker();
+        }
     }
 
     createWeapon() {
@@ -123,9 +129,15 @@ export class WeaponSystem {
         this.lastFireTime = Date.now();
         this.ammo--;
         
-        this.createBullet();
+        // Criar dados do disparo para multiplayer
+        const fireData = this.createBullet();
         this.showMuzzleFlash();
         this.addWeaponRecoil();
+        
+        // Enviar evento de disparo para o servidor multiplayer
+        if (this.multiplayerClient && this.multiplayerClient.isConnected()) {
+            this.multiplayerClient.sendFireEvent(fireData.position, fireData.direction);
+        }
         
         // Auto reload quando acabar munição
         if (this.ammo <= 0 && this.totalAmmo > 0) {
@@ -168,6 +180,12 @@ export class WeaponSystem {
             oldBullet.geometry.dispose();
             oldBullet.material.dispose();
         }
+        
+        // Retornar dados do disparo para multiplayer
+        return {
+            position: bullet.position.clone(),
+            direction: bullet.direction.clone()
+        };
     }
 
     showMuzzleFlash() {
@@ -198,13 +216,21 @@ export class WeaponSystem {
         
         this.isReloading = true;
         
+        // Enviar evento de recarga para servidor multiplayer
+        if (this.multiplayerClient && this.multiplayerClient.isConnected()) {
+            this.multiplayerClient.sendReloadEvent();
+        }
+        
         setTimeout(() => {
-            const ammoNeeded = this.maxAmmo - this.ammo;
-            const ammoToReload = Math.min(ammoNeeded, this.totalAmmo);
-            
-            this.ammo += ammoToReload;
-            this.totalAmmo -= ammoToReload;
-            this.isReloading = false;
+            // No modo multiplayer, o servidor controla a recarga
+            if (!this.multiplayerClient || !this.multiplayerClient.isConnected()) {
+                const ammoNeeded = this.maxAmmo - this.ammo;
+                const ammoToReload = Math.min(ammoNeeded, this.totalAmmo);
+                
+                this.ammo += ammoToReload;
+                this.totalAmmo -= ammoToReload;
+                this.isReloading = false;
+            }
         }, 2000); // 2 segundos para recarregar
     }
 
@@ -315,6 +341,62 @@ export class WeaponSystem {
             totalAmmo: this.totalAmmo,
             isReloading: this.isReloading
         };
+    }
+
+    showHitMarker() {
+        // Este método será chamado quando acertar um jogador no multiplayer
+        const hitMarker = document.createElement('div');
+        hitMarker.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 30px;
+            height: 30px;
+            margin: -15px 0 0 -15px;
+            z-index: 1001;
+            pointer-events: none;
+            opacity: 1;
+        `;
+
+        // X do hit marker
+        const line1 = document.createElement('div');
+        line1.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: #ff0000;
+            transform: rotate(45deg);
+            margin-top: -1.5px;
+        `;
+
+        const line2 = document.createElement('div');
+        line2.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: #ff0000;
+            transform: rotate(-45deg);
+            margin-top: -1.5px;
+        `;
+
+        hitMarker.appendChild(line1);
+        hitMarker.appendChild(line2);
+        document.body.appendChild(hitMarker);
+
+        // Animar fade out
+        setTimeout(() => {
+            hitMarker.style.transition = 'opacity 0.5s';
+            hitMarker.style.opacity = '0';
+            setTimeout(() => {
+                if (document.body.contains(hitMarker)) {
+                    document.body.removeChild(hitMarker);
+                }
+            }, 500);
+        }, 100);
     }
 
     dispose() {

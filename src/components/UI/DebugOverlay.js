@@ -64,7 +64,8 @@ export class DebugOverlay {
             rotation,
             chunks,
             memoryInfo,
-            weaponInfo
+            weaponInfo,
+            multiplayerInfo
         } = data;
 
         let weaponDebug = '';
@@ -74,6 +75,15 @@ export class DebugOverlay {
 WEAPON:
 Ammo: ${weaponInfo.ammo}/${weaponInfo.totalAmmo}
 Status: ${weaponInfo.isReloading ? 'Reloading...' : 'Ready'}`;
+        }
+
+        let multiplayerDebug = '';
+        if (multiplayerInfo) {
+            multiplayerDebug = `
+
+MULTIPLAYER:
+Status: ${multiplayerInfo.connected ? 'Connected' : 'Offline'}
+Players: ${multiplayerInfo.players}`;
         }
 
         return `=== DEBUG INFO ===
@@ -86,7 +96,7 @@ Moving: ${isMoving ? 'Yes' : 'No'}
 Rotation: ${rotation.toFixed(2)}°
 
 CAMERA:
-Mode: ${cameraMode}${weaponDebug}
+Mode: ${cameraMode}${weaponDebug}${multiplayerDebug}
 
 WORLD:
 Active Chunks: ${chunks}
@@ -101,7 +111,8 @@ CONTROLS:
 [WASD] Move
 [Mouse] Look Around
 [Click] Fire Weapon
-[R] Reload`;
+[R] Reload
+[Tab] Scoreboard`;
     }
 
     dispose() {
