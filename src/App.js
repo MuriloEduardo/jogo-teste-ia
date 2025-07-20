@@ -807,6 +807,9 @@ class MainCamera {
             this.thirdPersonCamera.position.add(direction.multiplyScalar(-this.thirdPersonDistance));
             this.thirdPersonCamera.position.y += this.thirdPersonHeight;
 
+            // Limitar altura mínima da câmera (não pode ir abaixo de 1.5 unidades do chão)
+            this.thirdPersonCamera.position.y = Math.max(this.thirdPersonCamera.position.y, 1.5);
+
             // Fazer a câmera olhar para a câmera de primeira pessoa
             this.thirdPersonCamera.lookAt(this.firstPersonCamera.position);
         }
@@ -826,6 +829,9 @@ class MainRenderer {
         // Cena
         this.scene = new THREE.Scene();
 
+        // Criar horizonte/skybox
+        this.createSkybox();
+
         // Câmera
         this.mainCamera = new MainCamera();
 
@@ -843,6 +849,66 @@ class MainRenderer {
 
         // Iniciar loop de animação
         this.animate();
+    }
+
+    createSkybox() {
+        // Criar uma esfera grande para simular o céu
+        const skyGeometry = new THREE.SphereGeometry(800, 32, 16);
+
+        // Criar gradiente de céu (azul claro no topo, mais claro no horizonte)
+        const skyMaterial = new THREE.MeshBasicMaterial({
+            color: 0x87CEEB, // Sky blue
+            side: THREE.BackSide, // Renderizar apenas o interior da esfera
+            fog: false // Não aplicar fog no céu
+        });
+
+        this.skybox = new THREE.Mesh(skyGeometry, skyMaterial);
+        this.scene.add(this.skybox);
+
+        // Adicionar algumas nuvens simples
+        this.createClouds();
+
+        // Adicionar fog para dar sensação de profundidade
+        this.scene.fog = new THREE.Fog(0xcccccc, 100, 400);
+    }
+
+    createClouds() {
+        this.cloudsGroup = new THREE.Group();
+
+        // Criar várias nuvens em posições aleatórias
+        for (let i = 0; i < 20; i++) {
+            const cloudGroup = new THREE.Group();
+
+            // Cada nuvem é feita de várias esferas pequenas
+            for (let j = 0; j < 5 + Math.random() * 5; j++) {
+                const cloudGeometry = new THREE.SphereGeometry(8 + Math.random() * 12, 8, 6);
+                const cloudMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.7
+                });
+
+                const cloudPart = new THREE.Mesh(cloudGeometry, cloudMaterial);
+
+                // Posicionar partes da nuvem
+                cloudPart.position.x = (Math.random() - 0.5) * 30;
+                cloudPart.position.y = (Math.random() - 0.5) * 8;
+                cloudPart.position.z = (Math.random() - 0.5) * 15;
+
+                cloudGroup.add(cloudPart);
+            }
+
+            // Posicionar nuvem no céu
+            const angle = (i / 20) * Math.PI * 2;
+            const distance = 200 + Math.random() * 200;
+            cloudGroup.position.x = Math.cos(angle) * distance;
+            cloudGroup.position.y = 40 + Math.random() * 30;
+            cloudGroup.position.z = Math.sin(angle) * distance;
+
+            this.cloudsGroup.add(cloudGroup);
+        }
+
+        this.scene.add(this.cloudsGroup);
     }
 
     animate() {
@@ -875,6 +941,7 @@ class MainRenderer {
         if (camera && this.animatedCharacter) {
             // Colocar o personagem no chão (y = 0) na mesma posição X e Z da câmera
             this.animatedCharacter.setPosition(camera.position.x, 0, camera.position.z);
+            // Rotacionar personagem baseado na câmera em ambos os modos
             this.animatedCharacter.setRotation(camera.rotation.y);
         }
 
@@ -892,6 +959,16 @@ class MainRenderer {
         // Atualizar chão infinito
         if (this.infiniteFloor) {
             this.infiniteFloor.update();
+        }
+
+        // Atualizar skybox para seguir a câmera
+        if (this.skybox) {
+            this.skybox.position.copy(this.mainCamera.activeCamera.position);
+        }
+
+        // Animar nuvens lentamente
+        if (this.cloudsGroup) {
+            this.cloudsGroup.rotation.y += 0.0005; // Rotação muito lenta
         }
 
         // Atualizar debug com informações do cenário (OTIMIZADO: menos frequente)
@@ -916,6 +993,21 @@ class MainRenderer {
         this.infiniteFloor.dispose();
         this.firstPersonLegs.dispose();
         this.animatedCharacter.dispose();
+
+        // Limpar skybox e nuvens
+        if (this.skybox) {
+            this.scene.remove(this.skybox);
+            this.skybox.geometry.dispose();
+            this.skybox.material.dispose();
+        }
+        if (this.cloudsGroup) {
+            this.cloudsGroup.traverse((child) => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+            this.scene.remove(this.cloudsGroup);
+        }
+
         mountRef.current.removeChild(this.renderer.domElement);
     }
 }
