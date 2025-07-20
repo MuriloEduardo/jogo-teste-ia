@@ -27,7 +27,7 @@ export class WeaponHUD {
 
         // Criar crosshair
         this.createCrosshair();
-        
+
         document.body.appendChild(this.hudElement);
     }
 
@@ -84,7 +84,7 @@ export class WeaponHUD {
         crosshair.appendChild(horizontal);
         crosshair.appendChild(vertical);
         crosshair.appendChild(center);
-        
+
         document.body.appendChild(crosshair);
     }
 
@@ -93,7 +93,7 @@ export class WeaponHUD {
 
         let statusColor = '#ffffff';
         let statusText = '';
-        
+
         if (weaponInfo.isReloading) {
             statusColor = '#ffaa00';
             statusText = '<div style="color: #ffaa00; font-size: 14px; margin-top: 5px;">RECARREGANDO...</div>';

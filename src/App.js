@@ -19,14 +19,14 @@ class GameEngine {
     constructor(mountRef) {
         this.mountRef = mountRef;
         this.scene = new THREE.Scene();
-        
+
         // Inicializar sistemas do jogo
         this.initializeRenderer();
         this.initializeLighting();
         this.initializeSkybox();
         this.initializeGameSystems();
         this.initializeEventHandlers();
-        
+
         // Começar o game loop
         this.animate();
     }
@@ -125,8 +125,8 @@ class GameEngine {
 
         // Inicializar cliente multiplayer
         this.multiplayerClient = new MultiplayerClient(
-            this.scene, 
-            this.mainCamera.firstPersonCamera, 
+            this.scene,
+            this.mainCamera.firstPersonCamera,
             null // Será definido após criar o WeaponSystem
         );
 
@@ -139,8 +139,8 @@ class GameEngine {
 
         // Inicializar sistema de arma (com suporte multiplayer)
         this.weaponSystem = new WeaponSystem(
-            this.scene, 
-            this.mainCamera.firstPersonCamera, 
+            this.scene,
+            this.mainCamera.firstPersonCamera,
             this.multiplayerClient
         );
 
@@ -151,7 +151,7 @@ class GameEngine {
         this.debugOverlay = new DebugOverlay();
         this.weaponHUD = new WeaponHUD();
         this.multiplayerHUD = new MultiplayerHUD();
-        
+
         // Mostrar mensagem de conexão
         setTimeout(() => {
             if (this.multiplayerClient.isConnected()) {
@@ -172,7 +172,7 @@ class GameEngine {
                 case 'KeyA': this.keys.a = true; break;
                 case 'KeyS': this.keys.s = true; break;
                 case 'KeyD': this.keys.d = true; break;
-                case 'KeyC': 
+                case 'KeyC':
                     const isFirstPerson = this.mainCamera.toggleCameraMode();
                     console.log(`Câmera alternada para: ${isFirstPerson ? 'Primeira pessoa' : 'Terceira pessoa'}`);
                     break;
@@ -197,7 +197,7 @@ class GameEngine {
         window.addEventListener('resize', () => {
             this.mainCamera.firstPersonCamera.aspect = window.innerWidth / window.innerHeight;
             this.mainCamera.firstPersonCamera.updateProjectionMatrix();
-            
+
             this.mainCamera.thirdPersonCamera.aspect = window.innerWidth / window.innerHeight;
             this.mainCamera.thirdPersonCamera.updateProjectionMatrix();
 
@@ -239,7 +239,7 @@ class GameEngine {
 
         // Aplicar movimento à câmera
         const isMoving = velocity.x !== 0 || velocity.z !== 0;
-        
+
         if (isMoving) {
             const newPosition = this.mainCamera.firstPersonCamera.position.clone();
             newPosition.x += velocity.x;
@@ -261,7 +261,7 @@ class GameEngine {
         // Atualizar posição do personagem de terceira pessoa
         const camera = this.mainCamera.firstPersonCamera;
         this.animatedCharacter.setPosition(camera.position.x, 0, camera.position.z);
-        
+
         // Rotacionar personagem na direção do movimento
         if (isMoving) {
             const targetRotation = Math.atan2(velocity.x, velocity.z);
@@ -284,7 +284,7 @@ class GameEngine {
 
         // Atualizar multiplayer
         this.multiplayerClient.update();
-        
+
         // Enviar posição para servidor multiplayer
         if (this.multiplayerClient.isConnected()) {
             this.multiplayerClient.sendPlayerUpdate(

@@ -28,7 +28,7 @@ export class MultiplayerHUD {
 
         // ScoreBoard
         this.createScoreBoard();
-        
+
         document.body.appendChild(this.statusElement);
     }
 
@@ -115,7 +115,7 @@ export class MultiplayerHUD {
 
         // Obter dados dos jogadores
         const players = Array.from(multiplayerClient.remotePlayers.values());
-        
+
         // Adicionar jogador local (simulado)
         const localPlayer = {
             id: multiplayerClient.playerId,
@@ -126,9 +126,9 @@ export class MultiplayerHUD {
                 health: 100
             }
         };
-        
+
         const allPlayers = [localPlayer, ...players];
-        
+
         // Ordenar por kills
         allPlayers.sort((a, b) => (b.data.kills || 0) - (a.data.kills || 0));
 
@@ -152,10 +152,10 @@ export class MultiplayerHUD {
             const deaths = player.data.deaths || 0;
             const health = player.data.health || 100;
             const kd = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toString();
-            
+
             let statusIcon = '💚';
             let statusColor = '#00ff00';
-            
+
             if (health <= 0) {
                 statusIcon = '💀';
                 statusColor = '#ff4444';
@@ -244,7 +244,7 @@ export class MultiplayerHUD {
         let bgColor = 'rgba(0, 100, 255, 0.9)';
         let icon = 'ℹ️';
 
-        switch(type) {
+        switch (type) {
             case 'success':
                 bgColor = 'rgba(0, 200, 0, 0.9)';
                 icon = '✅';
@@ -283,7 +283,7 @@ export class MultiplayerHUD {
             notification.style.transition = 'opacity 0.5s, transform 0.5s';
             notification.style.opacity = '0';
             notification.style.transform = 'translate(-50%, -50%) scale(0.8)';
-            
+
             setTimeout(() => {
                 if (document.body.contains(notification)) {
                     document.body.removeChild(notification);
@@ -294,7 +294,7 @@ export class MultiplayerHUD {
 
     update(multiplayerClient) {
         this.updateConnectionStatus(multiplayerClient);
-        
+
         if (this.isScoreBoardVisible) {
             this.updateScoreBoard(multiplayerClient);
         }

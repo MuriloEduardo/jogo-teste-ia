@@ -5,7 +5,7 @@ export class DebugOverlay {
         this.frameCount = 0;
         this.lastTime = performance.now();
         this.fps = 60;
-        
+
         this.createOverlay();
     }
 
@@ -43,7 +43,7 @@ export class DebugOverlay {
         // Calcular FPS
         const currentTime = performance.now();
         this.frameCount++;
-        
+
         if (currentTime - this.lastTime >= 1000) {
             this.fps = Math.round((this.frameCount * 1000) / (currentTime - this.lastTime));
             this.frameCount = 0;

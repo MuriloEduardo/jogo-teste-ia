@@ -16,11 +16,11 @@ export class MouseControl {
     // Inicializar controles de mouse
     init(domElement) {
         domElement.addEventListener('click', this.requestPointerLock.bind(this));
-        
+
         // Eventos de pointer lock
         document.addEventListener('pointerlockchange', this.onPointerLockChange.bind(this));
         document.addEventListener('pointerlockerror', this.onPointerLockError.bind(this));
-        
+
         // Eventos de movimento do mouse
         document.addEventListener('mousemove', this.onMouseMove.bind(this));
     }
