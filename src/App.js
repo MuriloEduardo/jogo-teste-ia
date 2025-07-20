@@ -1181,42 +1181,47 @@ class MouseControl {
         if (!this.isPointerLocked) return;
 
         const camera = this.cameraManager.firstPersonCamera;
-        // Calcular direção da câmera no plano XZ
-        const cameraDir = new THREE.Vector3();
-        camera.getWorldDirection(cameraDir);
-        cameraDir.y = 0;
-        cameraDir.normalize();
+        const animatedCharacter = this.cameraManager.animatedCharacter;
 
-        // Vetor lateral (direita)
-        const right = new THREE.Vector3();
-        right.crossVectors(cameraDir, new THREE.Vector3(0, 1, 0)).normalize();
+        // Camera-relative movement (Third-Person Camera-Relative Movement)
+        // 1. Obtenha os vetores da câmera
+        const cameraForward = new THREE.Vector3();
+        camera.getWorldDirection(cameraForward);
+        cameraForward.y = 0;
+        cameraForward.normalize();
 
-        // Montar vetor de movimento baseado nas teclas
-        let move = new THREE.Vector3();
-        if (this.keys.w) move.add(cameraDir);      // Para frente
-        if (this.keys.s) move.sub(cameraDir);      // Para trás
-        if (this.keys.a) move.sub(right);          // Para esquerda
-        if (this.keys.d) move.add(right);          // Para direita
-        if (move.lengthSq() > 0) move.normalize();
+        const cameraRight = new THREE.Vector3();
+        cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
 
-        // Suavização de aceleração/desaceleração
+        // 2. Input WASD
+        let inputX = 0, inputY = 0;
+        if (this.keys.w) inputY += 1;
+        if (this.keys.s) inputY -= 1;
+        if (this.keys.a) inputX -= 1;
+        if (this.keys.d) inputX += 1;
+
+        // 3. Calcule direção de movimento relativa à câmera
+        let moveDirection = new THREE.Vector3();
+        moveDirection.addScaledVector(cameraForward, inputY);
+        moveDirection.addScaledVector(cameraRight, inputX);
+        if (moveDirection.lengthSq() > 0) moveDirection.normalize();
+
+        // 4. Suavize velocidade e mova personagem
         if (!this.currentVelocity) this.currentVelocity = new THREE.Vector3();
         const maxSpeed = this.moveSpeed;
-        const acceleration = 0.18; // Quanto maior, mais rápido acelera
-        this.currentVelocity.lerp(move.multiplyScalar(maxSpeed), acceleration);
+        const acceleration = 0.18;
+        this.currentVelocity.lerp(moveDirection.multiplyScalar(maxSpeed), acceleration);
 
-        // Calcular nova posição
+        // 5. Calcular nova posição
         const newPosition = camera.position.clone().add(this.currentVelocity);
 
-        // Verificar colisão se o InfiniteFloor está disponível
+        // 6. Colisão
         if (this.infiniteFloor) {
             const collision = this.infiniteFloor.checkCollision(newPosition.x, newPosition.z);
             if (collision.collision) {
-                // Movimento suave com deslizamento ao longo das superfícies
                 const adjustedPosition = camera.position.clone();
                 adjustedPosition.x += collision.pushX;
                 adjustedPosition.z += collision.pushZ;
-                // Tentar movimento parcial em cada eixo separadamente (deslizar)
                 const testX = camera.position.clone();
                 testX.x += this.currentVelocity.x;
                 const collisionX = this.infiniteFloor.checkCollision(testX.x, testX.z);
@@ -1237,10 +1242,16 @@ class MouseControl {
             camera.position.add(this.currentVelocity);
         }
 
-        // Atualizar rotação do personagem apenas se estiver se movendo
-        if (this.cameraManager.animatedCharacter && move.lengthSq() > 0) {
-            // O personagem gira para a direção do movimento
-            this.cameraManager.animatedCharacter.setRotation(Math.atan2(this.currentVelocity.x, this.currentVelocity.z));
+        // 7. Rotacione personagem suavemente para direção do movimento
+        if (animatedCharacter && moveDirection.lengthSq() > 0) {
+            const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
+            // Suavização da rotação
+            const currentAngle = animatedCharacter.characterGroup.rotation.y;
+            let delta = targetAngle - currentAngle;
+            // Corrige wrap de ângulo
+            if (delta > Math.PI) delta -= Math.PI * 2;
+            if (delta < -Math.PI) delta += Math.PI * 2;
+            animatedCharacter.setRotation(currentAngle + delta * 0.2); // 0.2 = suavidade
         }
 
         // OTIMIZADO: Atualizar debug menos frequentemente durante movimento
