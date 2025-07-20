@@ -1176,77 +1176,78 @@ class MouseControl {
         document.addEventListener('keyup', this.handleKeyUp);
     }
 
-    // Método para atualizar movimento OTIMIZADO com COLISÃO SUAVE
+    // Método para atualizar movimento OTIMIZADO com COLISÃO SUAVE e lógica moderna de terceira pessoa
     updateMovement() {
         if (!this.isPointerLocked) return;
 
         const camera = this.cameraManager.firstPersonCamera;
-        const direction = new THREE.Vector3();
+        // Calcular direção da câmera no plano XZ
+        const cameraDir = new THREE.Vector3();
+        camera.getWorldDirection(cameraDir);
+        cameraDir.y = 0;
+        cameraDir.normalize();
 
-        // Calcular direção baseada na rotação da câmera
-        if (this.keys.w) direction.z -= 1;
-        if (this.keys.s) direction.z += 1;
-        if (this.keys.a) direction.x -= 1;
-        if (this.keys.d) direction.x += 1;
+        // Vetor lateral (direita)
+        const right = new THREE.Vector3();
+        right.crossVectors(cameraDir, new THREE.Vector3(0, 1, 0)).normalize();
 
-        // Normalizar direção para movimento consistente
-        if (direction.length() > 0) {
-            direction.normalize();
+        // Montar vetor de movimento baseado nas teclas
+        let move = new THREE.Vector3();
+        if (this.keys.w) move.add(cameraDir);      // Para frente
+        if (this.keys.s) move.sub(cameraDir);      // Para trás
+        if (this.keys.a) move.sub(right);          // Para esquerda
+        if (this.keys.d) move.add(right);          // Para direita
+        if (move.lengthSq() > 0) move.normalize();
 
-            // Aplicar rotação Y da câmera à direção
-            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
+        // Suavização de aceleração/desaceleração
+        if (!this.currentVelocity) this.currentVelocity = new THREE.Vector3();
+        const maxSpeed = this.moveSpeed;
+        const acceleration = 0.18; // Quanto maior, mais rápido acelera
+        this.currentVelocity.lerp(move.multiplyScalar(maxSpeed), acceleration);
 
-            // NOVO: Calcular nova posição com movimento mais suave
-            const moveVector = direction.multiplyScalar(this.moveSpeed);
-            const newPosition = camera.position.clone().add(moveVector);
+        // Calcular nova posição
+        const newPosition = camera.position.clone().add(this.currentVelocity);
 
-            // NOVO: Verificar colisão se o InfiniteFloor está disponível
-            if (this.infiniteFloor) {
-                const collision = this.infiniteFloor.checkCollision(newPosition.x, newPosition.z);
-
-                if (collision.collision) {
-                    // Movimento suave com deslizamento ao longo das superfícies
-                    const adjustedPosition = camera.position.clone();
-
-                    // Aplicar empurrão gradual
-                    adjustedPosition.x += collision.pushX;
-                    adjustedPosition.z += collision.pushZ;
-
-                    // Tentar movimento parcial em cada eixo separadamente (deslizar)
-                    const testX = camera.position.clone();
-                    testX.x += moveVector.x;
-                    const collisionX = this.infiniteFloor.checkCollision(testX.x, testX.z);
-
-                    const testZ = camera.position.clone();
-                    testZ.z += moveVector.z;
-                    const collisionZ = this.infiniteFloor.checkCollision(testZ.x, testZ.z);
-
-                    // Permitir movimento no eixo que não tem colisão (deslizar)
-                    if (!collisionX.collision) {
-                        adjustedPosition.x = testX.x;
-                    }
-                    if (!collisionZ.collision) {
-                        adjustedPosition.z = testZ.z;
-                    }
-
-                    // Aplicar posição ajustada suavemente
-                    camera.position.lerp(adjustedPosition, 0.8);
-
-                } else {
-                    // Sem colisão, mover normalmente
-                    camera.position.copy(newPosition);
+        // Verificar colisão se o InfiniteFloor está disponível
+        if (this.infiniteFloor) {
+            const collision = this.infiniteFloor.checkCollision(newPosition.x, newPosition.z);
+            if (collision.collision) {
+                // Movimento suave com deslizamento ao longo das superfícies
+                const adjustedPosition = camera.position.clone();
+                adjustedPosition.x += collision.pushX;
+                adjustedPosition.z += collision.pushZ;
+                // Tentar movimento parcial em cada eixo separadamente (deslizar)
+                const testX = camera.position.clone();
+                testX.x += this.currentVelocity.x;
+                const collisionX = this.infiniteFloor.checkCollision(testX.x, testX.z);
+                const testZ = camera.position.clone();
+                testZ.z += this.currentVelocity.z;
+                const collisionZ = this.infiniteFloor.checkCollision(testZ.x, testZ.z);
+                if (!collisionX.collision) {
+                    adjustedPosition.x = testX.x;
                 }
+                if (!collisionZ.collision) {
+                    adjustedPosition.z = testZ.z;
+                }
+                camera.position.lerp(adjustedPosition, 0.8);
             } else {
-                // Fallback: movimento sem colisão
-                camera.position.add(moveVector);
+                camera.position.copy(newPosition);
             }
+        } else {
+            camera.position.add(this.currentVelocity);
+        }
 
-            // OTIMIZADO: Atualizar debug menos frequentemente durante movimento
-            if (!this.movementCounter) this.movementCounter = 0;
-            this.movementCounter++;
-            if (this.movementCounter % 20 === 0) {
-                this.updateDebugDisplay();
-            }
+        // Atualizar rotação do personagem apenas se estiver se movendo
+        if (this.cameraManager.animatedCharacter && move.lengthSq() > 0) {
+            // O personagem gira para a direção do movimento
+            this.cameraManager.animatedCharacter.setRotation(Math.atan2(this.currentVelocity.x, this.currentVelocity.z));
+        }
+
+        // OTIMIZADO: Atualizar debug menos frequentemente durante movimento
+        if (!this.movementCounter) this.movementCounter = 0;
+        this.movementCounter++;
+        if (this.movementCounter % 20 === 0) {
+            this.updateDebugDisplay();
         }
     }
 
