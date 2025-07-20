@@ -10,8 +10,8 @@ import { MouseControl } from "./components/Controls/MouseControl";
 import { InfiniteFloor } from "./components/World/InfiniteFloor";
 import { DebugOverlay } from "./components/UI/DebugOverlay";
 
-// Classe principal do jogo
-class GameEngine {
+// Classe principal do renderizador e game loop
+class MainRenderer {
     constructor(mountRef) {
         this.mountRef = mountRef;
         this.scene = new THREE.Scene();
@@ -28,9 +28,25 @@ class GameEngine {
     }
 
     initializeRenderer() {
-        this.rendererInstance = new MainRenderer();
-        this.renderer = this.rendererInstance.renderer;
-        this.mountRef.current.appendChild(this.rendererInstance.getDomElement());
+        this.renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            powerPreference: "high-performance"
+        });
+        
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // Configurações de performance
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1;
+
+        // Configurar background
+        this.renderer.setClearColor(0x87CEEB, 1); // Céu azul claro
+
+        this.mountRef.current.appendChild(this.renderer.domElement);
     }
 
     initializeLighting() {
@@ -117,7 +133,7 @@ class GameEngine {
 
         // Inicializar sistemas de controle
         this.mouseControl = new MouseControl();
-        this.mouseControl.init(this.rendererInstance.getDomElement());
+        this.mouseControl.init(this.renderer.domElement);
 
         // Inicializar personagens
         this.firstPersonLegs = new FirstPersonLegs(this.scene, this.mainCamera.firstPersonCamera);
@@ -169,7 +185,7 @@ class GameEngine {
             this.mainCamera.thirdPersonCamera.aspect = window.innerWidth / window.innerHeight;
             this.mainCamera.thirdPersonCamera.updateProjectionMatrix();
 
-            this.rendererInstance.setSize(window.innerWidth, window.innerHeight);
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
     }
 
@@ -261,7 +277,7 @@ class GameEngine {
         }
 
         // Renderizar cena
-        this.rendererInstance.render(this.scene, this.mainCamera.activeCamera);
+        this.renderer.render(this.scene, this.mainCamera.activeCamera);
     }
 
     dispose(mountRef) {
@@ -277,9 +293,9 @@ class GameEngine {
         window.removeEventListener('resize', this.resizeHandler);
 
         // Limpar renderer
-        if (this.rendererInstance && mountRef.current) {
-            mountRef.current.removeChild(this.rendererInstance.getDomElement());
-            this.rendererInstance.dispose();
+        if (this.renderer && mountRef.current) {
+            mountRef.current.removeChild(this.renderer.domElement);
+            this.renderer.dispose();
         }
 
         // Limpar recursos da cena
@@ -298,10 +314,10 @@ function App() {
 
     useEffect(() => {
         // Renderizador
-        const gameEngine = new GameEngine(mountRef);
+        const mainRenderer = new MainRenderer(mountRef);
 
         return () => {
-            gameEngine.dispose(mountRef);
+            mainRenderer.dispose(mountRef);
         };
     }, []);
 
