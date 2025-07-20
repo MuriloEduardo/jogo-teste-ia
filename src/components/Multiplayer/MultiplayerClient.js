@@ -35,7 +35,7 @@ export class MultiplayerClient {
     connect() {
         console.log('🔗 Conectando ao servidor multiplayer...');
 
-        this.socket = io(process.env.SERVER_URL, {
+        this.socket = io(process.env.SERVER_URL || 'https://server-jogo-teste-ia.onrender.com/', {
             transports: ['websocket'],
             upgrade: false
         });
