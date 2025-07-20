@@ -57,12 +57,12 @@ class AnimatedCharacter {
         const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
 
         this.leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-        this.leftEye.position.set(-0.15, 0.1, 0.28);
+        this.leftEye.position.set(-0.15, 0.1, 0.31); // Movido mais para frente
         this.faceGroup.add(this.leftEye);
 
         // Olho direito
         this.rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-        this.rightEye.position.set(0.15, 0.1, 0.28);
+        this.rightEye.position.set(0.15, 0.1, 0.31); // Movido mais para frente
         this.faceGroup.add(this.rightEye);
 
         // Pupilas (brancas para contraste)
@@ -70,18 +70,18 @@ class AnimatedCharacter {
         const pupilMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
         this.leftPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
-        this.leftPupil.position.set(-0.15, 0.1, 0.32);
+        this.leftPupil.position.set(-0.15, 0.1, 0.35); // Movido mais para frente
         this.faceGroup.add(this.leftPupil);
 
         this.rightPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
-        this.rightPupil.position.set(0.15, 0.1, 0.32);
+        this.rightPupil.position.set(0.15, 0.1, 0.35); // Movido mais para frente
         this.faceGroup.add(this.rightPupil);
 
         // Nariz
         const noseGeometry = new THREE.ConeGeometry(0.05, 0.15, 6);
         const noseMaterial = new THREE.MeshBasicMaterial({ color: 0xffddaa });
         this.nose = new THREE.Mesh(noseGeometry, noseMaterial);
-        this.nose.position.set(0, -0.05, 0.28);
+        this.nose.position.set(0, -0.05, 0.31); // Movido mais para frente
         this.nose.rotation.x = Math.PI / 2;
         this.faceGroup.add(this.nose);
 
@@ -89,7 +89,7 @@ class AnimatedCharacter {
         const mouthGeometry = new THREE.BoxGeometry(0.2, 0.05, 0.05);
         const mouthMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
         this.mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
-        this.mouth.position.set(0, -0.2, 0.28);
+        this.mouth.position.set(0, -0.2, 0.31); // Movido mais para frente
         this.faceGroup.add(this.mouth);
 
         // Posicionar o rosto na cabeça
@@ -777,8 +777,8 @@ class MainCamera {
         );
 
         // Propriedades para terceira pessoa
-        this.thirdPersonDistance = 10;
-        this.thirdPersonHeight = 5;
+        this.thirdPersonDistance = 8; // Reduzido para ficar mais próximo
+        this.thirdPersonHeight = 4; // Reduzido para melhor ângulo
 
         // Modo atual (true = primeira pessoa, false = terceira pessoa)
         this.isFirstPerson = true;
@@ -798,20 +798,27 @@ class MainCamera {
     // Atualiza posição da câmera de terceira pessoa
     updateThirdPersonCamera() {
         if (!this.isFirstPerson) {
-            // Calcular posição atrás da câmera de primeira pessoa
+            // Calcular posição atrás e ligeiramente à direita da câmera de primeira pessoa
             const direction = new THREE.Vector3(0, 0, 1);
             direction.applyQuaternion(this.firstPersonCamera.quaternion);
 
-            // Posicionar câmera atrás e acima
+            // Calcular posição lateral (ligeiramente à direita)
+            const rightDirection = new THREE.Vector3(1, 0, 0);
+            rightDirection.applyQuaternion(this.firstPersonCamera.quaternion);
+
+            // Posicionar câmera atrás, acima e ligeiramente à direita
             this.thirdPersonCamera.position.copy(this.firstPersonCamera.position);
             this.thirdPersonCamera.position.add(direction.multiplyScalar(-this.thirdPersonDistance));
+            this.thirdPersonCamera.position.add(rightDirection.multiplyScalar(2)); // Offset lateral
             this.thirdPersonCamera.position.y += this.thirdPersonHeight;
 
             // Limitar altura mínima da câmera (não pode ir abaixo de 1.5 unidades do chão)
             this.thirdPersonCamera.position.y = Math.max(this.thirdPersonCamera.position.y, 1.5);
 
-            // Fazer a câmera olhar para a câmera de primeira pessoa
-            this.thirdPersonCamera.lookAt(this.firstPersonCamera.position);
+            // Fazer a câmera olhar para a câmera de primeira pessoa (centro do personagem)
+            const lookAtTarget = this.firstPersonCamera.position.clone();
+            lookAtTarget.y += 1; // Olhar ligeiramente acima dos pés
+            this.thirdPersonCamera.lookAt(lookAtTarget);
         }
     }
 }
@@ -941,7 +948,8 @@ class MainRenderer {
         if (camera && this.animatedCharacter) {
             // Colocar o personagem no chão (y = 0) na mesma posição X e Z da câmera
             this.animatedCharacter.setPosition(camera.position.x, 0, camera.position.z);
-            // Rotacionar personagem baseado na câmera em ambos os modos
+            // CORRIGIDO: Rotacionar personagem baseado na direção da câmera (não apenas rotation.y)
+            // Usar a rotação Y da câmera para que o personagem olhe na direção que a câmera está apontando
             this.animatedCharacter.setRotation(camera.rotation.y);
         }
 
@@ -1084,6 +1092,7 @@ class MouseControl {
             <div>Status: ${isMovingText}</div>
             <div>Camera Rotation X (Vertical): ${rotationX}°</div>
             <div>Camera Rotation Y (Horizontal): ${rotationY}°</div>
+            <div style="color: cyan;">Character Rotation Y: ${rotationY}° (seguindo câmera)</div>
             <div>Camera Position: (${posX}, ${posZ})</div>
             <div>Teclas Pressionadas: ${keysStatus}</div>
             <div>Move Speed: ${this.moveSpeed}</div>
