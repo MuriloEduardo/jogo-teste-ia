@@ -943,16 +943,17 @@ class MainRenderer {
             this.animatedCharacter.updateWalkAnimation();
         }
 
-        // Atualizar posição e rotação do personagem de terceira pessoa
+        // Atualizar posição do personagem de terceira pessoa
         const camera = this.mainCamera.firstPersonCamera;
         if (camera && this.animatedCharacter) {
             // Colocar o personagem no chão (y = 0) na mesma posição X e Z da câmera
             this.animatedCharacter.setPosition(camera.position.x, 0, camera.position.z);
-            // CORRIGIDO: Rotacionar personagem baseado na direção da câmera (não apenas rotation.y)
-            // Usar a rotação Y da câmera para que o personagem olhe na direção que a câmera está apontando
-            this.animatedCharacter.setRotation(camera.rotation.y);
+            // Se estiver andando, personagem segue a direção da câmera
+            if (this.firstPersonLegs.isWalking || this.mainCamera.isFirstPerson) {
+                this.animatedCharacter.setRotation(camera.rotation.y);
+            }
+            // Se estiver parado em terceira pessoa, rotação é controlada pelo mouse (já aplicada)
         }
-
         // Controlar visibilidade baseada no modo da câmera
         if (this.firstPersonLegs) {
             this.firstPersonLegs.setVisible(this.mainCamera.isFirstPerson);
@@ -1112,27 +1113,32 @@ class MouseControl {
         };
 
         this.handleMouseMove = (event) => {
-            if (this.isPointerLocked) {
-                const movementX = event.movementX || 0;
-                const movementY = event.movementY || 0;
+            if (!this.isPointerLocked) return;
+            const movementX = event.movementX || 0;
+            const movementY = event.movementY || 0;
 
-                const camera = this.cameraManager.firstPersonCamera;
+            const camera = this.cameraManager.firstPersonCamera;
+            const mainCamera = this.cameraManager;
+            const animatedCharacter = mainCamera.animatedCharacter;
 
-                // Rotação horizontal (Y) - movimento do mouse para esquerda/direita
+            // Eixo Y do mouse: inclinação da câmera (vertical)
+            camera.rotation.x -= movementY * this.sensitivity;
+            camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+
+            // Eixo X do mouse: direção do personagem em terceira pessoa
+            if (!mainCamera.isFirstPerson && animatedCharacter && !this.isMoving()) {
+                // Rotaciona apenas o personagem parado
+                animatedCharacter.characterGroup.rotation.y -= movementX * this.sensitivity;
+            } else {
+                // Primeira pessoa ou andando: rotaciona a câmera normalmente
                 camera.rotation.y -= movementX * this.sensitivity;
+            }
 
-                // Rotação vertical (X) - movimento do mouse para cima/baixo
-                camera.rotation.x -= movementY * this.sensitivity;
-
-                // Limitar rotação vertical para não dar voltas completas
-                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
-
-                // OTIMIZADO: Atualizar debug menos frequentemente
-                if (!this.mouseMoveCounter) this.mouseMoveCounter = 0;
-                this.mouseMoveCounter++;
-                if (this.mouseMoveCounter % 10 === 0) {
-                    this.updateDebugDisplay();
-                }
+            // OTIMIZADO: Atualizar debug menos frequentemente
+            if (!this.mouseMoveCounter) this.mouseMoveCounter = 0;
+            this.mouseMoveCounter++;
+            if (this.mouseMoveCounter % 10 === 0) {
+                this.updateDebugDisplay();
             }
         };
 
@@ -1215,7 +1221,7 @@ class MouseControl {
                     testZ.z += moveVector.z;
                     const collisionZ = this.infiniteFloor.checkCollision(testZ.x, testZ.z);
 
-                    // Permitir movimento no eixo que não tem colisão (deslizamento)
+                    // Permitir movimento no eixo que não tem colisão (deslizar)
                     if (!collisionX.collision) {
                         adjustedPosition.x = testX.x;
                     }
